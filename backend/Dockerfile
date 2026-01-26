@@ -17,7 +17,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Development stage
 FROM base AS development
 
-COPY pyproject.toml .
+COPY pyproject.toml README.md ./
 RUN pip install -e ".[dev]"
 
 COPY . .
@@ -29,7 +29,7 @@ CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload
 # Production stage
 FROM base AS production
 
-COPY pyproject.toml .
+COPY pyproject.toml README.md ./
 RUN pip install .
 
 COPY . .

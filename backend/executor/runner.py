@@ -57,6 +57,10 @@ def _create_safe_builtins() -> dict:
     # Add the safe import function
     safe_builtins["__import__"] = _create_safe_import()
 
+    # Add essential dunder methods needed for Python features
+    safe_builtins["__build_class__"] = builtins.__build_class__  # Required for class definitions
+    safe_builtins["__name__"] = "__main__"  # For if __name__ == "__main__" checks
+
     # Add safe versions of some functions
     safe_builtins["print"] = print
     safe_builtins["range"] = range

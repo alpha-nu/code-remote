@@ -1,5 +1,5 @@
 # Backend API Dockerfile
-FROM python:3.11-slim as base
+FROM python:3.11-slim AS base
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -15,7 +15,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Development stage
-FROM base as development
+FROM base AS development
 
 COPY pyproject.toml .
 RUN pip install -e ".[dev]"
@@ -27,7 +27,7 @@ EXPOSE 8000
 CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
 # Production stage
-FROM base as production
+FROM base AS production
 
 COPY pyproject.toml .
 RUN pip install .

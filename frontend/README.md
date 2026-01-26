@@ -52,6 +52,21 @@ npm run lint
 npm run type-check
 ```
 
+### Testing
+
+We use Vitest with React Testing Library for unit tests.
+
+```bash
+# Run tests once
+npm run test
+
+# Run tests in watch mode
+npm run test:watch
+
+# Run tests with coverage
+npm run test:coverage
+```
+
 #### ESLint Configuration
 
 ESLint is configured in `eslint.config.js` with:

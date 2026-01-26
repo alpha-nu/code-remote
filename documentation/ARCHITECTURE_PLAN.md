@@ -399,42 +399,160 @@ code-remote/
 
 ---
 
+## Implementation Approach: Incremental Build (Option B) ✅
+
+We will build one component at a time, verifying each piece works before moving on. This approach ensures deep understanding of each part and catches integration issues early.
+
+**Build Order:** Backend API → Executor → Frontend → Infrastructure → Integration
+
+---
+
 ## Implementation Phases
 
-### Phase 1: Foundation (Week 1-2)
-- [ ] Project scaffolding
-- [ ] Basic FastAPI service with health endpoint
-- [ ] Docker setup for local development
-- [ ] Pulumi project initialization (AWS)
-- [ ] CI pipeline setup
+### Phase 1: Backend Foundation
+**Goal:** Working FastAPI service with local Docker development
 
-### Phase 2: Core Execution (Week 3-4)
-- [ ] Sandboxed Python executor
-- [ ] Queue integration (Redis Streams)
-- [ ] Basic API endpoints (submit, status, result)
-- [ ] Unit and integration tests
+| Step | Task | Verification |
+|------|------|--------------|
+| 1.1 | Create project structure and `pyproject.toml` | `pip install -e .` succeeds |
+| 1.2 | FastAPI skeleton with `/health` endpoint | `curl localhost:8000/health` returns 200 |
+| 1.3 | Pydantic settings with `.env` support | Config loads from environment |
+| 1.4 | Docker Compose for local development | `docker-compose up` starts service |
+| 1.5 | Unit test setup with pytest | `pytest` runs and passes |
+| 1.6 | CI pipeline (GitHub Actions) | PR checks pass |
 
-### Phase 3: Frontend (Week 5)
-- [ ] Monaco Editor integration
-- [ ] WebSocket for real-time output
-- [ ] Basic UI (submit, view results)
+**Deliverables:**
+- `backend/api/` with working health endpoint
+- `docker-compose.yml` for local dev
+- `.github/workflows/ci.yml`
 
-### Phase 4: LLM Integration (Week 6)
-- [ ] Complexity analysis service
-- [ ] LLM provider abstraction
-- [ ] Prompt engineering for accurate analysis
+---
 
-### Phase 5: Security Hardening (Week 7)
-- [ ] gVisor integration
-- [ ] Network policies
-- [ ] Security scanning in CI
-- [ ] Penetration testing
+### Phase 2: Sandboxed Executor
+**Goal:** Secure Python code execution with resource limits
 
-### Phase 6: Production Readiness (Week 8)
-- [ ] Kubernetes deployment manifests
-- [ ] Monitoring and alerting
-- [ ] Documentation
-- [ ] Load testing
+| Step | Task | Verification |
+|------|------|--------------|
+| 2.1 | Basic executor that runs Python code | Execute `print("hello")` returns output |
+| 2.2 | Stdout/stderr capture | Capture print statements and errors |
+| 2.3 | Timeout enforcement (30s max) | Infinite loop gets killed |
+| 2.4 | Import restrictions (whitelist) | `import os` raises error |
+| 2.5 | Resource limits (memory) | Memory hog gets killed |
+| 2.6 | Executor Docker image | Run executor in container |
+| 2.7 | Integration tests | Full execution flow tested |
+
+**Deliverables:**
+- `backend/executor/` with sandboxed runner
+- `backend/executor/Dockerfile`
+- Security whitelist configuration
+
+---
+
+### Phase 3: API Integration
+**Goal:** Connect API to executor via queue
+
+| Step | Task | Verification |
+|------|------|--------------|
+| 3.1 | Execution request/response schemas | Pydantic models validate |
+| 3.2 | `/execute` endpoint (sync for now) | Submit code, get result |
+| 3.3 | Redis Streams queue setup | Queue accepts messages |
+| 3.4 | Async execution via queue | Submit → poll → get result |
+| 3.5 | `/status/{id}` endpoint | Check execution status |
+| 3.6 | Error handling and validation | Bad input returns proper errors |
+
+**Deliverables:**
+- `backend/api/routers/execution.py`
+- `backend/api/services/executor_service.py`
+- Queue integration with Redis
+
+---
+
+### Phase 4: Frontend
+**Goal:** Working code editor that submits and displays results
+
+| Step | Task | Verification |
+|------|------|--------------|
+| 4.1 | React + Vite project setup | `npm run dev` starts app |
+| 4.2 | Monaco Editor integration | Editor renders with Python syntax |
+| 4.3 | API client for execution | Submit button calls `/execute` |
+| 4.4 | Result display panel | See stdout/stderr/errors |
+| 4.5 | Loading states and error handling | UX for pending/error states |
+| 4.6 | Basic styling | Clean, usable interface |
+
+**Deliverables:**
+- `frontend/` with React + Monaco
+- Working end-to-end execution flow
+
+---
+
+### Phase 5: LLM Complexity Analysis
+**Goal:** Gemini-powered code analysis
+
+| Step | Task | Verification |
+|------|------|--------------|
+| 5.1 | Gemini provider with API key auth | Connection test passes |
+| 5.2 | Complexity analysis prompt | Returns time/space complexity |
+| 5.3 | `/analyze` endpoint | Submit code, get analysis |
+| 5.4 | Frontend integration | Show complexity after execution |
+| 5.5 | Prompt refinement | Accurate results on test cases |
+
+**Deliverables:**
+- `backend/analyzer/` with Gemini provider
+- Complexity prompts in `backend/analyzer/prompts/`
+
+---
+
+### Phase 6: Authentication
+**Goal:** Cognito-based user authentication
+
+| Step | Task | Verification |
+|------|------|--------------|
+| 6.1 | Cognito user pool setup (Pulumi) | Pool created in AWS |
+| 6.2 | JWT validation middleware | Protected endpoints require token |
+| 6.3 | AWS Amplify frontend integration | Login/logout flow works |
+| 6.4 | User context in execution | Executions tied to user |
+
+**Deliverables:**
+- `infra/pulumi/components/auth.py`
+- `backend/api/middleware/auth.py`
+- Frontend auth flow
+
+---
+
+### Phase 7: Infrastructure & Deployment
+**Goal:** Production-ready AWS deployment
+
+| Step | Task | Verification |
+|------|------|--------------|
+| 7.1 | Pulumi project structure | `pulumi preview` works |
+| 7.2 | VPC and networking | Resources created |
+| 7.3 | RDS PostgreSQL | Database accessible |
+| 7.4 | SQS queues | Messages flow through |
+| 7.5 | EKS cluster for executor | Pods run successfully |
+| 7.6 | ECR for container images | Images push/pull |
+| 7.7 | GitHub Actions deploy workflow | Push to release branch deploys |
+
+**Deliverables:**
+- `infra/pulumi/` complete
+- `kubernetes/` manifests
+- `.github/workflows/deploy.yml`
+
+---
+
+### Phase 8: Security Hardening
+**Goal:** Production security posture
+
+| Step | Task | Verification |
+|------|------|--------------|
+| 8.1 | gVisor runtime on executor pods | Pods use runsc |
+| 8.2 | Network policies (no egress) | Executor can't reach internet |
+| 8.3 | Secrets Manager integration | No secrets in code/config |
+| 8.4 | Security scanning in CI | Vulnerabilities flagged |
+| 8.5 | Rate limiting | Abuse prevented |
+
+**Deliverables:**
+- Hardened Kubernetes manifests
+- Security scanning workflow
 
 ---
 
@@ -443,9 +561,10 @@ code-remote/
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
 | Architecture | **Option 3: Hybrid** | Balance of managed services + execution control |
+| **Build Approach** | **Option B: Incremental** | Build one component at a time, verify each works |
 | Frontend | **React + Monaco Editor** | Industry standard, VS Code's editor |
 | Authentication | **AWS Cognito** | Native AWS integration, managed service |
-| LLM Provider | **Google Gemini** | Strong code understanding, competitive pricing |
+| LLM Provider | **Google Gemini** | API key auth only, no GCP setup required |
 | Execution Timeout | **30 seconds** | Allows complex computations while limiting abuse |
 | Initial Cloud | **AWS** | Mature ecosystem, Cognito integration |
 
@@ -471,4 +590,6 @@ code-remote/
 
 ## Status: APPROVED ✅
 
-`.github/copilot-instructions.md` has been generated.
+- `.github/copilot-instructions.md` has been generated
+- `documentation/RELEASE_WORKFLOW.md` documents deployment workflow
+- **Current Phase: 1 - Backend Foundation** (Ready to start)

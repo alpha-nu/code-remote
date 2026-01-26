@@ -3,7 +3,7 @@
  */
 
 import { create } from 'zustand';
-import type { ExecutionResponse } from '../types/execution';
+import type { AnalyzeResponse, ExecutionResponse } from '../types/execution';
 
 const DEFAULT_CODE = `# Write your Python code here
 # Example: Calculate factorial
@@ -31,6 +31,16 @@ interface EditorState {
   result: ExecutionResponse | null;
   setResult: (result: ExecutionResponse | null) => void;
 
+  // Analysis state
+  isAnalyzing: boolean;
+  setIsAnalyzing: (isAnalyzing: boolean) => void;
+
+  analysis: AnalyzeResponse | null;
+  setAnalysis: (analysis: AnalyzeResponse | null) => void;
+
+  autoAnalyze: boolean;
+  setAutoAnalyze: (autoAnalyze: boolean) => void;
+
   // Error state (for API errors, not execution errors)
   apiError: string | null;
   setApiError: (error: string | null) => void;
@@ -53,6 +63,15 @@ export const useEditorStore = create<EditorState>((set) => ({
   result: null,
   setResult: (result) => set({ result }),
 
+  isAnalyzing: false,
+  setIsAnalyzing: (isAnalyzing) => set({ isAnalyzing }),
+
+  analysis: null,
+  setAnalysis: (analysis) => set({ analysis }),
+
+  autoAnalyze: true,
+  setAutoAnalyze: (autoAnalyze) => set({ autoAnalyze }),
+
   apiError: null,
   setApiError: (apiError) => set({ apiError }),
 
@@ -64,6 +83,9 @@ export const useEditorStore = create<EditorState>((set) => ({
       code: DEFAULT_CODE,
       isExecuting: false,
       result: null,
+      isAnalyzing: false,
+      analysis: null,
+      autoAnalyze: true,
       apiError: null,
       timeoutSeconds: 30,
     }),

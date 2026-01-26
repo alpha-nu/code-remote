@@ -1,8 +1,6 @@
 """Unit tests for the code runner."""
 
-import pytest
-
-from executor.runner import ExecutionResult, execute_code
+from executor.runner import execute_code
 
 
 class TestBasicExecution:

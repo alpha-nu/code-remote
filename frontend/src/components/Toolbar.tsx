@@ -3,7 +3,7 @@
  */
 
 import { useEditorStore } from '../store/editorStore';
-import { executeCode } from '../api/client';
+import { analyzeCode, executeCode } from '../api/client';
 
 export function Toolbar() {
   const {
@@ -11,6 +11,11 @@ export function Toolbar() {
     isExecuting,
     setIsExecuting,
     setResult,
+    isAnalyzing,
+    setIsAnalyzing,
+    setAnalysis,
+    autoAnalyze,
+    setAutoAnalyze,
     setApiError,
     timeoutSeconds,
     setTimeoutSeconds,
@@ -29,6 +34,11 @@ export function Toolbar() {
         timeout_seconds: timeoutSeconds,
       });
       setResult(result);
+
+      // Auto-analyze after successful execution
+      if (autoAnalyze && result.success) {
+        handleAnalyze();
+      }
     } catch (error) {
       if (error instanceof Error) {
         setApiError(error.message);
@@ -37,6 +47,23 @@ export function Toolbar() {
       }
     } finally {
       setIsExecuting(false);
+    }
+  };
+
+  const handleAnalyze = async () => {
+    if (isAnalyzing || !code.trim()) return;
+
+    setIsAnalyzing(true);
+    setAnalysis(null);
+
+    try {
+      const analysis = await analyzeCode({ code });
+      setAnalysis(analysis);
+    } catch (error) {
+      // Silently fail analysis - it's optional
+      console.error('Analysis failed:', error);
+    } finally {
+      setIsAnalyzing(false);
     }
   };
 
@@ -79,6 +106,14 @@ export function Toolbar() {
       </div>
 
       <div className="toolbar-right">
+        <label className="auto-analyze-label">
+          <input
+            type="checkbox"
+            checked={autoAnalyze}
+            onChange={(e) => setAutoAnalyze(e.target.checked)}
+          />
+          Auto-analyze
+        </label>
         <label className="timeout-label">
           Timeout:
           <select

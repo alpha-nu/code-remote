@@ -1,73 +1,110 @@
-# React + TypeScript + Vite
+# Code Remote Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React web application for the Remote Code Execution Engine.
 
-Currently, two official plugins are available:
+## Tech Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **React 18** with TypeScript
+- **Vite** for build tooling
+- **Monaco Editor** - VS Code's editor component
+- **Zustand** for state management
+- **Axios** for API calls
 
-## React Compiler
+## Development
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### Prerequisites
 
-## Expanding the ESLint configuration
+- Node.js 18+
+- npm or yarn
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+### Setup
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+```bash
+# Install dependencies
+npm install
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+# Start development server
+npm run dev
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+# Default: http://localhost:5173
+# Or specify port: npm run dev -- --port 3000
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+### Building
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+```bash
+# Production build
+npm run build
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+# Preview production build
+npm run preview
+```
+
+### Linting & Type Checking
+
+We use ESLint with TypeScript support for linting.
+
+```bash
+# Run ESLint
+npm run lint
+
+# Run TypeScript type checking
+npm run type-check
+```
+
+#### ESLint Configuration
+
+ESLint is configured in `eslint.config.js` with:
+- TypeScript-ESLint recommended rules
+- React Hooks rules
+- React Refresh rules
+
+### Pre-commit Hooks
+
+Pre-commit hooks are configured at the repository root. Hooks run automatically on commit and include:
+- ESLint for TypeScript/React
+- TypeScript type checking
+
+Install hooks from repo root:
+
+```bash
+cd ..
+pip install pre-commit
+pre-commit install
+```
+
+## Project Structure
+
+```
+frontend/
+├── src/
+│   ├── api/           # API client functions
+│   ├── assets/        # Static assets
+│   ├── components/    # React components
+│   │   ├── CodeEditor.tsx      # Monaco editor wrapper
+│   │   ├── OutputPanel.tsx     # Execution output display
+│   │   ├── ComplexityPanel.tsx # AI analysis results
+│   │   └── Toolbar.tsx         # Action buttons
+│   ├── store/         # Zustand state stores
+│   ├── types/         # TypeScript type definitions
+│   ├── App.tsx        # Main application component
+│   └── main.tsx       # Entry point
+├── public/            # Static files
+└── index.html         # HTML template
+```
+
+## Features
+
+- **Code Editor** - Full Monaco Editor with Python syntax highlighting
+- **Code Execution** - Run Python code securely via backend API
+- **Complexity Analysis** - AI-powered Big-O analysis via Gemini LLM
+- **Real-time Output** - View stdout, stderr, and execution time
+
+## Environment
+
+The app connects to the backend API. Configure the API URL:
+
+```bash
+# Default: http://localhost:8000
+# For production, set VITE_API_URL environment variable
 ```

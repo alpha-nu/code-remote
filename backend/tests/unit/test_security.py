@@ -1,11 +1,6 @@
 """Unit tests for the security module."""
 
-import pytest
-
 from executor.security import (
-    ALLOWED_IMPORTS,
-    BLOCKED_BUILTINS,
-    SecurityViolation,
     is_code_safe,
     validate_code,
 )

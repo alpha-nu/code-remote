@@ -1,0 +1,24 @@
+Analyze the following Python code and determine its time and space complexity.
+
+## Code to analyze:
+```python
+{code}
+```
+
+## Instructions:
+1. Identify the main algorithm or operations in the code
+2. Analyze the time complexity using Big O notation
+3. Analyze the space complexity using Big O notation
+4. Provide a brief explanation for each
+
+## Response format (respond ONLY with this JSON structure, no markdown):
+{{
+  "time_complexity": "O(...)",
+  "space_complexity": "O(...)",
+  "time_explanation": "Brief explanation of why this time complexity",
+  "space_explanation": "Brief explanation of why this space complexity",
+  "algorithm_identified": "Name or description of the main algorithm if recognizable",
+  "suggestions": ["Optional improvement suggestions"]
+}}
+
+Be precise and technical. If the code has multiple functions, analyze the overall complexity considering typical usage patterns.

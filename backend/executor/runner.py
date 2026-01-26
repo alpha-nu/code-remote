@@ -35,8 +35,7 @@ def _create_safe_import():
 
         if module_name not in ALLOWED_IMPORTS:
             raise ImportError(
-                f"Import of '{name}' is not allowed. "
-                f"Allowed modules: {sorted(ALLOWED_IMPORTS)}"
+                f"Import of '{name}' is not allowed. Allowed modules: {sorted(ALLOWED_IMPORTS)}"
             )
 
         # Use the real __import__ for allowed modules

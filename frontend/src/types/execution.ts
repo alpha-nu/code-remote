@@ -24,3 +24,28 @@ export interface SecurityViolation {
   line: number | null;
   column: number | null;
 }
+
+/**
+ * Types for code analysis API.
+ */
+
+export interface AnalyzeRequest {
+  code: string;
+}
+
+export interface AnalyzeResponse {
+  success: boolean;
+  time_complexity: string;
+  space_complexity: string;
+  time_explanation: string;
+  space_explanation: string;
+  algorithm_identified: string | null;
+  suggestions: string[] | null;
+  error: string | null;
+  available: boolean;
+}
+
+export interface AnalysisStatus {
+  available: boolean;
+  provider: string | null;
+}

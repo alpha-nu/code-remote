@@ -1,0 +1,49 @@
+# Pre-commit hooks configuration
+# Install with: pre-commit install
+# Run manually: pre-commit run --all-files
+
+repos:
+  # Python linting with Ruff
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.6
+    hooks:
+      - id: ruff
+        name: ruff lint
+        args: [--fix]
+        types_or: [python, pyi]
+      - id: ruff-format
+        name: ruff format
+        types_or: [python, pyi]
+
+  # General file checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: '\.md$'
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-json
+        # Exclude TypeScript config files which are JSONC (JSON with comments)
+        exclude: 'tsconfig.*\.json$'
+      - id: check-added-large-files
+        args: ['--maxkb=500']
+      - id: check-merge-conflict
+      - id: detect-private-key
+
+  # TypeScript/JavaScript linting
+  - repo: local
+    hooks:
+      - id: eslint
+        name: eslint
+        entry: bash -c 'cd frontend && npm run lint'
+        language: system
+        files: '\.(ts|tsx|js|jsx)$'
+        pass_filenames: false
+
+      - id: typescript-check
+        name: typescript check
+        entry: bash -c 'cd frontend && npm run type-check'
+        language: system
+        files: '\.(ts|tsx)$'
+        pass_filenames: false

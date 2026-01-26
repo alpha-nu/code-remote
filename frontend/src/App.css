@@ -330,6 +330,150 @@ body {
   font-style: italic;
 }
 
+/* Auto-analyze checkbox */
+.auto-analyze-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-right: 16px;
+  cursor: pointer;
+}
+
+.auto-analyze-label input[type="checkbox"] {
+  cursor: pointer;
+}
+
+/* Complexity Panel */
+.complexity-panel {
+  margin-top: 16px;
+  border-top: 1px solid var(--border-color);
+  padding-top: 12px;
+}
+
+.complexity-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.complexity-title {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--accent-blue);
+}
+
+.complexity-status {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+.complexity-status.analyzing {
+  color: var(--accent-blue);
+  background-color: rgba(0, 122, 204, 0.15);
+}
+
+.complexity-status.success {
+  color: var(--success-color);
+  background-color: rgba(76, 175, 80, 0.15);
+}
+
+.complexity-status.error,
+.complexity-status.unavailable {
+  color: var(--text-secondary);
+  background-color: rgba(157, 157, 157, 0.15);
+}
+
+.complexity-content {
+  font-size: 13px;
+}
+
+.complexity-badges {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.complexity-badge {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 16px;
+  border-radius: 6px;
+  background-color: var(--bg-primary);
+}
+
+.complexity-badge.time {
+  border-left: 3px solid var(--accent-blue);
+}
+
+.complexity-badge.space {
+  border-left: 3px solid var(--accent-green);
+}
+
+.badge-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary);
+  margin-bottom: 2px;
+}
+
+.badge-value {
+  font-size: 16px;
+  font-weight: 600;
+  font-family: 'Monaco', 'Menlo', monospace;
+  color: var(--text-primary);
+}
+
+.complexity-explanations {
+  margin-bottom: 10px;
+}
+
+.complexity-explanations .explanation {
+  padding: 4px 0;
+  color: var(--text-secondary);
+}
+
+.complexity-explanations .explanation strong {
+  color: var(--text-primary);
+}
+
+.algorithm-identified {
+  padding: 6px 0;
+  color: var(--accent-yellow);
+}
+
+.suggestions {
+  margin-top: 8px;
+  padding: 8px;
+  background-color: var(--bg-primary);
+  border-radius: 4px;
+}
+
+.suggestions strong {
+  color: var(--accent-green);
+}
+
+.suggestions ul {
+  margin: 6px 0 0 16px;
+  padding: 0;
+}
+
+.suggestions li {
+  padding: 2px 0;
+  color: var(--text-secondary);
+}
+
+.unavailable-message {
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .main-content {

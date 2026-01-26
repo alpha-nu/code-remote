@@ -1,9 +1,8 @@
 """Execution service for running user code."""
 
-from executor import ExecutionResult, execute_code
-
 from api.schemas.execution import ExecutionResponse, SecurityViolationResponse
 from common.config import settings
+from executor import ExecutionResult, execute_code
 
 
 class ExecutorService:

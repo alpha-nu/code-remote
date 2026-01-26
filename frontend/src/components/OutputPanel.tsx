@@ -3,6 +3,7 @@
  */
 
 import { useEditorStore } from '../store/editorStore';
+import { ComplexityPanel } from './ComplexityPanel';
 
 export function OutputPanel() {
   const { result, isExecuting, apiError } = useEditorStore();
@@ -107,6 +108,9 @@ export function OutputPanel() {
             <p className="empty-output">Code executed successfully with no output.</p>
           </div>
         )}
+
+        {/* Complexity Analysis */}
+        <ComplexityPanel />
       </div>
     </div>
   );

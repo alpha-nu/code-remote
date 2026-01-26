@@ -1,0 +1,134 @@
+/**
+ * Styles for user menu component.
+ */
+
+.user-menu {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.user-loading {
+  color: #808080;
+  font-size: 0.85rem;
+}
+
+.sign-in-button {
+  padding: 0.5rem 1rem;
+  background-color: #4a9eff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.sign-in-button:hover {
+  background-color: #3a8eef;
+}
+
+.user-button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.65rem;
+  background-color: #2a2a2a;
+  border: 1px solid #3a3a3a;
+  border-radius: 4px;
+  color: #e0e0e0;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.user-button:hover {
+  background-color: #333;
+}
+
+.user-avatar {
+  width: 1.75rem;
+  height: 1.75rem;
+  background-color: #4a9eff;
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.user-name {
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.9rem;
+}
+
+.dropdown-arrow {
+  font-size: 0.6rem;
+  color: #808080;
+  transition: transform 0.2s;
+}
+
+.user-button[aria-expanded="true"] .dropdown-arrow {
+  transform: rotate(180deg);
+}
+
+.dropdown-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 99;
+}
+
+.user-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 200px;
+  background-color: #1e1e1e;
+  border: 1px solid #333;
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  z-index: 100;
+  overflow: hidden;
+}
+
+.dropdown-header {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #333;
+}
+
+.dropdown-email {
+  color: #a0a0a0;
+  font-size: 0.85rem;
+}
+
+.dropdown-item {
+  display: block;
+  width: 100%;
+  padding: 0.65rem 1rem;
+  background: none;
+  border: none;
+  color: #e0e0e0;
+  font-size: 0.9rem;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.dropdown-item:hover {
+  background-color: #2a2a2a;
+}
+
+.dropdown-item.logout {
+  color: #ff6b6b;
+}
+
+.dropdown-item.logout:hover {
+  background-color: rgba(255, 107, 107, 0.1);
+}

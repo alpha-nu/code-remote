@@ -23,6 +23,9 @@ def test_settings_loads_from_env_vars():
         "REDIS_URL": "redis://test:6379",
         "DATABASE_URL": "postgresql://test:test@localhost/testdb",
         "GEMINI_API_KEY": "test-key",
+        "COGNITO_USER_POOL_ID": "us-east-1_TestPool",
+        "COGNITO_CLIENT_ID": "test-client-id",
+        "COGNITO_REGION": "us-east-1",
     }
     with patch.dict(os.environ, env_vars, clear=True):
         settings = Settings(_env_file=None)
@@ -62,6 +65,9 @@ def test_settings_cors_origins_parses_json():
         "REDIS_URL": "redis://localhost:6379",
         "DATABASE_URL": "postgresql://localhost/db",
         "GEMINI_API_KEY": "",
+        "COGNITO_USER_POOL_ID": "us-east-1_Test",
+        "COGNITO_CLIENT_ID": "test-client",
+        "COGNITO_REGION": "us-east-1",
     }
     with patch.dict(os.environ, env_vars, clear=True):
         settings = Settings(_env_file=None)

@@ -44,6 +44,11 @@ class Settings(BaseSettings):
     # Gemini LLM (API key only - no GCP project required)
     gemini_api_key: str
 
+    # AWS Cognito Authentication
+    cognito_user_pool_id: str
+    cognito_client_id: str
+    cognito_region: str
+
 
 @lru_cache
 def get_settings() -> Settings:

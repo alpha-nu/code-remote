@@ -4,6 +4,8 @@
 
 import { useEditorStore } from '../store/editorStore';
 import { analyzeCode, executeCode } from '../api/client';
+import { UserMenu } from './UserMenu';
+import { useAuthStore } from '../store/authStore';
 
 export function Toolbar() {
   const {
@@ -21,8 +23,16 @@ export function Toolbar() {
     setTimeoutSeconds,
   } = useEditorStore();
 
+  const { isAuthenticated } = useAuthStore();
+
   const handleRun = async () => {
     if (isExecuting || !code.trim()) return;
+
+    // Require authentication to run code
+    if (!isAuthenticated) {
+      setApiError('Please sign in to run code');
+      return;
+    }
 
     setIsExecuting(true);
     setResult(null);
@@ -126,6 +136,7 @@ export function Toolbar() {
             <option value={30}>30s</option>
           </select>
         </label>
+        <UserMenu />
       </div>
     </div>
   );

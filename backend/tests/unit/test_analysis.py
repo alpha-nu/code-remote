@@ -2,17 +2,18 @@
 
 from unittest.mock import AsyncMock
 
-import pytest
-from fastapi.testclient import TestClient
-
+from api.auth.dependencies import get_current_user
+from api.auth.models import User
 from api.main import app
 from api.services.analyzer_service import get_analyzer_service
 
-
-@pytest.fixture
-def client():
-    """Create test client."""
-    return TestClient(app)
+# Test user for authenticated requests
+TEST_USER = User(
+    id="test-user-123",
+    email="test@example.com",
+    username="testuser",
+    groups=None,
+)
 
 
 class MockAnalyzerService:
@@ -55,6 +56,8 @@ class TestAnalyzeEndpoint:
         """Test analysis with mocked LLM response."""
         mock_service = MockAnalyzerService(available=True)
 
+        # Override both auth and analyzer service
+        app.dependency_overrides[get_current_user] = lambda: TEST_USER
         app.dependency_overrides[get_analyzer_service] = lambda: mock_service
 
         try:
@@ -71,21 +74,29 @@ class TestAnalyzeEndpoint:
         finally:
             app.dependency_overrides.clear()
 
-    def test_analyze_empty_code_rejected(self, client):
+    def test_analyze_empty_code_rejected(self, authenticated_client):
         """Test that empty code is rejected."""
-        response = client.post(
+        response = authenticated_client.post(
             "/analyze",
             json={"code": ""},
         )
         assert response.status_code == 422  # Validation error
 
-    def test_analyze_missing_code_rejected(self, client):
+    def test_analyze_missing_code_rejected(self, authenticated_client):
         """Test that missing code field is rejected."""
-        response = client.post(
+        response = authenticated_client.post(
             "/analyze",
             json={},
         )
         assert response.status_code == 422
+
+    def test_analyze_unauthenticated_returns_401(self, client):
+        """Test that unauthenticated request returns 401."""
+        response = client.post(
+            "/analyze",
+            json={"code": "for i in range(n): print(i)"},
+        )
+        assert response.status_code == 401
 
 
 class TestAnalyzeStatusEndpoint:

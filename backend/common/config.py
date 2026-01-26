@@ -6,7 +6,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    """Application settings loaded from environment variables."""
+    """Application settings loaded from environment variables.
+
+    All values must be provided via environment variables or .env file.
+    See .env.example for required configuration.
+    """
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -16,29 +20,29 @@ class Settings(BaseSettings):
     )
 
     # Application
-    app_name: str = "code-remote"
-    debug: bool = False
-    environment: str = "development"
+    app_name: str
+    debug: bool
+    environment: str
 
     # Server
-    host: str = "0.0.0.0"
-    port: int = 8000
+    host: str
+    port: int
 
     # CORS
-    cors_origins: list[str] = ["http://localhost:3000", "http://localhost:5173"]
+    cors_origins: list[str]
 
     # Execution limits
-    execution_timeout_seconds: int = 30
-    max_code_size_bytes: int = 10240  # 10KB
+    execution_timeout_seconds: int
+    max_code_size_bytes: int
 
     # Redis (for queue)
-    redis_url: str = "redis://localhost:6379"
+    redis_url: str
 
     # Database
-    database_url: str = "postgresql://postgres:postgres@localhost:5432/coderemote"
+    database_url: str
 
     # Gemini LLM (API key only - no GCP project required)
-    gemini_api_key: str = ""
+    gemini_api_key: str
 
 
 @lru_cache

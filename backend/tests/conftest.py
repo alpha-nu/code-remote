@@ -22,6 +22,7 @@ os.environ.setdefault("GEMINI_API_KEY", "test-api-key-for-testing")
 os.environ.setdefault("COGNITO_USER_POOL_ID", "us-east-1_TestPool")
 os.environ.setdefault("COGNITO_CLIENT_ID", "test-client-id")
 os.environ.setdefault("COGNITO_REGION", "us-east-1")
+os.environ.setdefault("DEV_AUTH_BYPASS", "false")  # Ensure auth is required in tests
 
 import pytest
 from fastapi.testclient import TestClient

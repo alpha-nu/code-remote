@@ -28,7 +28,7 @@ export function Toolbar() {
   const handleRun = async () => {
     if (isExecuting || !code.trim()) return;
 
-    // Require authentication to run code
+    // Check auth (backend enforces this, but show friendly message)
     if (!isAuthenticated) {
       setApiError('Please sign in to run code');
       return;

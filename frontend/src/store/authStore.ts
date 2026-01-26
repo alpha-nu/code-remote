@@ -21,6 +21,16 @@ export interface AuthUser {
   email?: string;
 }
 
+// Dev bypass user for local testing
+const DEV_USER: AuthUser = {
+  id: 'dev-user-local',
+  username: 'developer',
+  email: 'dev@localhost',
+};
+
+// Check if dev auth bypass is enabled
+const isDevBypass = import.meta.env.VITE_DEV_AUTH_BYPASS === 'true';
+
 interface AuthState {
   // User state
   user: AuthUser | null;
@@ -50,6 +60,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
    * Initialize auth state by checking for existing session.
    */
   initialize: async () => {
+    // Dev bypass for local testing
+    if (isDevBypass) {
+      console.warn('⚠️ DEV_AUTH_BYPASS is enabled - authentication is disabled!');
+      set({
+        user: DEV_USER,
+        isAuthenticated: true,
+        isLoading: false,
+      });
+      return;
+    }
+
     set({ isLoading: true, error: null });
     try {
       const currentUser = await getCurrentUser();

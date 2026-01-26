@@ -49,6 +49,9 @@ class Settings(BaseSettings):
     cognito_client_id: str
     cognito_region: str
 
+    # Development settings (NEVER enable in production!)
+    dev_auth_bypass: bool = False
+
 
 @lru_cache
 def get_settings() -> Settings:

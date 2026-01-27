@@ -1,0 +1,6 @@
+name: code-remote
+runtime:
+  name: python
+  options:
+    virtualenv: ../../.venv
+description: Code Remote - Infrastructure as Code

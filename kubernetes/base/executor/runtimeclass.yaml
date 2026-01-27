@@ -1,0 +1,16 @@
+# gVisor RuntimeClass for sandboxed execution
+# Requires gVisor (runsc) to be installed on executor nodes
+# See: https://gvisor.dev/docs/user_guide/containerd/quick_start/
+apiVersion: node.k8s.io/v1
+kind: RuntimeClass
+metadata:
+  name: gvisor
+handler: runsc
+scheduling:
+  nodeSelector:
+    workload: executor
+  tolerations:
+    - key: workload
+      operator: Equal
+      value: executor
+      effect: NoSchedule

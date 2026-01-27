@@ -1,0 +1,17 @@
+# Production environment - multiple executors, strict limits
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: executor
+spec:
+  replicas: 3
+  template:
+    spec:
+      # Spread across AZs
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: executor

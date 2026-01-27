@@ -8,6 +8,7 @@ import pulumi
 
 from components.cognito import CognitoComponent
 from components.ecr import ECRComponent
+from components.eks import EKSComponent
 from components.secrets import SecretsComponent
 from components.vpc import VPCComponent
 
@@ -61,6 +62,17 @@ cognito = CognitoComponent(
 )
 
 # =============================================================================
+# EKS - Kubernetes Cluster
+# =============================================================================
+eks = EKSComponent(
+    f"{environment}-eks",
+    environment=environment,
+    vpc_id=vpc.vpc.id,
+    subnet_ids=vpc.private_subnet_ids,
+    tags=common_tags,
+)
+
+# =============================================================================
 # Stack Outputs
 # =============================================================================
 
@@ -80,3 +92,8 @@ pulumi.export("gemini_api_key_secret_arn", secrets.gemini_api_key.arn)
 pulumi.export("cognito_user_pool_id", cognito.user_pool.id)
 pulumi.export("cognito_user_pool_client_id", cognito.user_pool_client.id)
 pulumi.export("cognito_user_pool_endpoint", cognito.user_pool.endpoint)
+
+# EKS outputs
+pulumi.export("eks_cluster_name", eks.cluster.name)
+pulumi.export("eks_cluster_endpoint", eks.cluster.endpoint)
+pulumi.export("eks_oidc_provider_arn", eks.oidc_provider.arn)

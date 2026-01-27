@@ -1,0 +1,20 @@
+# Dev environment - single executor, relaxed resources
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: executor
+spec:
+  replicas: 1
+  template:
+    spec:
+      # Skip gVisor in dev for easier debugging
+      runtimeClassName: ""
+      containers:
+        - name: executor
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi

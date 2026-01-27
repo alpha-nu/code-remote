@@ -1,0 +1,26 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: executor-isolation
+  labels:
+    app.kubernetes.io/name: executor
+spec:
+  # Apply to executor pods
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: executor
+  policyTypes:
+    - Ingress
+    - Egress
+  # Allow ingress only from API pods
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: api
+      ports:
+        - protocol: TCP
+          port: 8001
+  # DENY ALL EGRESS - executor cannot make outbound connections
+  # This is critical for security - prevents data exfiltration
+  egress: []

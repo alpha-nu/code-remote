@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: api-config
+  labels:
+    app.kubernetes.io/name: api
+data:
+  APP_NAME: "code-remote"
+  DEBUG: "false"
+  ENVIRONMENT: "production"
+  HOST: "0.0.0.0"
+  PORT: "8000"
+  CORS_ORIGINS: '["https://coderemote.dev"]'
+  EXECUTION_TIMEOUT_SECONDS: "30"
+  MAX_CODE_SIZE_BYTES: "10240"
+  # These will be overridden per environment
+  COGNITO_USER_POOL_ID: ""
+  COGNITO_CLIENT_ID: ""
+  COGNITO_REGION: "us-east-1"
+  # Placeholder URLs (not used yet)
+  REDIS_URL: ""
+  DATABASE_URL: ""

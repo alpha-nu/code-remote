@@ -82,8 +82,7 @@ class TestCognitoAuth:
         )
 
         assert auth.jwks_url == (
-            "https://cognito-idp.us-east-1.amazonaws.com/"
-            "us-east-1_ABCD1234/.well-known/jwks.json"
+            "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_ABCD1234/.well-known/jwks.json"
         )
         assert auth.issuer == ("https://cognito-idp.us-east-1.amazonaws.com/us-east-1_ABCD1234")
 

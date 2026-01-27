@@ -4,6 +4,38 @@ This document tracks deferred technical decisions and potential improvements.
 
 ---
 
+## Phase 7: Infrastructure & Deployment
+
+**Status:** Planning Complete  
+**Date Added:** January 26, 2026
+
+**Architecture Decisions:**
+- **Container Orchestration:** EKS (Kubernetes) for gVisor sandbox isolation
+- **Region:** Single region (us-east-1), expand later
+- **Domain/HTTPS:** Use AWS-provided endpoints initially, no custom domain
+- **Cost Strategy:** Spot instances, right-sized resources, auto-scaling
+
+**Implementation Plan:**
+
+### Phase 7A: AWS Foundation (Pulumi)
+- VPC + Subnets (public/private)
+- ECR (container registry)
+- Secrets Manager (GEMINI_API_KEY, Cognito secrets)
+- Cognito User Pool deployment
+
+### Phase 7B: EKS Cluster
+- EKS cluster with managed node groups
+- Spot instances for cost savings
+- gVisor runtime for executor pods
+- NetworkPolicy for executor isolation
+
+### Phase 7C: CI/CD Deployment
+- GitHub Actions deploy workflow
+- Branch-based environments (release/dev, release/staging, release/prod)
+- Automated rollouts with health checks
+
+---
+
 ## Python Version Upgrade
 
 **Status:** Deferred  
@@ -33,17 +65,14 @@ This document tracks deferred technical decisions and potential improvements.
 
 ## Migrate google-generativeai to google-genai
 
-**Status:** Deferred  
-**Date Added:** January 26, 2026
+**Status:** ✅ Complete  
+**Date Completed:** January 26, 2026
 
-**Current State:**
-- Using deprecated `google-generativeai` package
-- FutureWarning displayed on import
-
-**Action Required:**
-- Replace `google-generativeai` with `google-genai` package
-- Update `analyzer/providers/gemini.py` to use new API
-- See: https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+**Changes Made:**
+- Replaced `google-generativeai` with `google-genai>=1.0.0` in pyproject.toml
+- Rewrote `analyzer/providers/gemini.py` to use new Client-based API
+- Updated model from `gemini-3-flash-preview` to `gemini-2.5-flash`
+- Updated test mocks for new SDK
 
 ---
 

@@ -168,4 +168,20 @@ jobs:
 
       - name: Verify image
         run: |
-          docker run --rm code-remote-api:${{ github.sha }} python -c "from api.main import app; print('OK')"
+          docker run --rm \
+            -e APP_NAME=code-remote \
+            -e DEBUG=false \
+            -e ENVIRONMENT=ci \
+            -e HOST=0.0.0.0 \
+            -e PORT=8000 \
+            -e CORS_ORIGINS='["http://localhost:3000"]' \
+            -e EXECUTION_TIMEOUT_SECONDS=30 \
+            -e MAX_CODE_SIZE_BYTES=10240 \
+            -e REDIS_URL=redis://localhost:6379 \
+            -e DATABASE_URL=postgresql://localhost/test \
+            -e GEMINI_API_KEY=test-key \
+            -e COGNITO_USER_POOL_ID=us-east-1_test \
+            -e COGNITO_CLIENT_ID=test-client-id \
+            -e COGNITO_REGION=us-east-1 \
+            code-remote-api:${{ github.sha }} \
+            python -c "from api.main import app; print('OK')"

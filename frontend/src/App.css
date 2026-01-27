@@ -274,8 +274,17 @@ input[type="checkbox"] {
 
 .editor-container {
   height: 100%;
+  position: relative;
 }
 
+/* Floating keyboard hint shown inside the editor (top-right) */
+.editor-container .editor-hint {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  z-index: 12;
+  pointer-events: none;
+}
 
 .editor-loading {
   display: flex;
@@ -539,18 +548,16 @@ input[type="checkbox"] {
 
 .complexity-badges {
   display: flex;
-  gap: 16px;
-  margin-bottom: 14px;
+  gap: 12px;
+  margin-bottom: 12px;
 }
 
 .complexity-badge {
   display: flex;
   flex-direction: column;
-  padding: 10px 18px;
+  padding: 8px 16px;
   border-radius: 6px;
   background-color: var(--bg-primary);
-  min-width: 140px;
-  align-items: flex-start;
 }
 
 .complexity-badge.time {
@@ -558,7 +565,7 @@ input[type="checkbox"] {
 }
 
 .complexity-badge.space {
-  border-left: 3px solid var(--accent-blue);
+  border-left: 3px solid var(--accent-green);
 }
 
 .badge-label {
@@ -570,8 +577,8 @@ input[type="checkbox"] {
 }
 
 .badge-value {
-  font-size: 17px;
-  font-weight: 700;
+  font-size: 16px;
+  font-weight: 600;
   font-family: 'Monaco', 'Menlo', monospace;
   color: var(--text-primary);
 }
@@ -602,7 +609,7 @@ input[type="checkbox"] {
 }
 
 .suggestions strong {
-  color: var(--accent-blue);
+  color: var(--accent-green);
 }
 
 .suggestions ul {

@@ -27,6 +27,7 @@ export function CodeEditor() {
 
   return (
     <div className="editor-container">
+      <span className="keyboard-hint editor-hint">command pallete F1</span>
       <Editor
         height="100%"
         defaultLanguage="python"

@@ -19,7 +19,7 @@ spec:
         workload: api
       containers:
         - name: api
-          image: code-remote-api:latest
+          image: api-placeholder:latest
           imagePullPolicy: Always
           ports:
             - name: http

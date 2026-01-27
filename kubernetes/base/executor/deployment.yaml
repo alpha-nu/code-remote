@@ -26,7 +26,7 @@ spec:
           effect: NoSchedule
       containers:
         - name: executor
-          image: code-remote-executor:latest
+          image: executor-placeholder:latest
           imagePullPolicy: Always
           ports:
             - name: http

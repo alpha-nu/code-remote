@@ -194,29 +194,50 @@ input[type="checkbox"] {
 
 .theme-toggle {
   margin-left: 12px;
-  padding: 6px 8px;
+  /* match `user-button` sizing: padding 0.35rem 0.65rem and avatar height 1.75rem */
+  height: 41px;
+  padding: 0 10px;
   border-radius: 6px;
-  background: transparent;
+  background: var(--bg-tertiary);
   color: var(--text-secondary);
-  border: 1px solid transparent;
+  border: 1px solid var(--border-color);
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.theme-toggle:hover {
-  border-color: var(--border-color);
+.theme-toggle {
+  margin-left: 12px;
+  padding: 8px;
+  border-radius: 8px;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .theme-toggle-icon {
-  width: 34px;
-  height: 34px;
+  width: 18px;
+  height: 18px;
   display: inline-block;
-  transition: transform 220ms cubic-bezier(.2,.9,.2,1), filter 180ms ease, opacity 160ms ease;
-  will-change: transform;
+  transition: transform 260ms cubic-bezier(.2,.9,.2,1), filter 180ms ease, opacity 160ms ease;
+  will-change: transform, opacity;
+}
+
+/* allow smooth transitions of SVG shapes (prepare for morph animation) */
+.theme-toggle-icon circle,
+.theme-toggle-icon path,
+.theme-toggle-icon line {
+  transition: all 320ms cubic-bezier(.2,.9,.2,1);
 }
 
 /* animate icon when theme changes (subtle rotate + scale) */
 .theme-toggle-icon.animate {
-  transform: rotate(20deg) scale(1.06);
+  transform: rotate(20deg) scale(1.04);
 }
 
 .btn-icon {

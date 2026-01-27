@@ -5,7 +5,7 @@
 import { useEditorStore } from '../store/editorStore';
 import { executeCode } from '../api/client';
 import { UserMenu } from './UserMenu';
-import themeToggleIcon from '../assets/theme-toggle.svg';
+import { useEffect, useState } from 'react';
 import { useAuthStore } from '../store/authStore';
 
 export function Toolbar() {
@@ -20,6 +20,20 @@ export function Toolbar() {
   } = useEditorStore();
 
   const { isAuthenticated } = useAuthStore();
+
+  const [isLight, setIsLight] = useState(() =>
+    typeof document !== 'undefined' && document.documentElement.classList.contains('light-theme'),
+  );
+
+  useEffect(() => {
+    const onTheme = () => setIsLight(document.documentElement.classList.contains('light-theme'));
+    window.addEventListener('themechange', onTheme);
+    window.addEventListener('storage', onTheme);
+    return () => {
+      window.removeEventListener('themechange', onTheme);
+      window.removeEventListener('storage', onTheme);
+    };
+  }, []);
 
   const handleRun = async () => {
     if (isExecuting || !code.trim()) return;
@@ -107,8 +121,8 @@ export function Toolbar() {
             className="theme-toggle"
             onClick={() => {
               const root = document.documentElement;
-              const isLight = root.classList.contains('light-theme');
-              if (isLight) {
+              const currentlyLight = root.classList.contains('light-theme');
+              if (currentlyLight) {
                 root.classList.remove('light-theme');
                 localStorage.setItem('theme', 'dark');
               } else {
@@ -116,16 +130,36 @@ export function Toolbar() {
                 localStorage.setItem('theme', 'light');
               }
               // animate the icon briefly
-              const img = document.querySelector('.theme-toggle-icon');
-              if (img) {
-                img.classList.add('animate');
-                setTimeout(() => img.classList.remove('animate'), 420);
+              const svg = document.querySelector('.theme-toggle-icon');
+              if (svg) {
+                svg.classList.add('animate');
+                setTimeout(() => svg.classList.remove('animate'), 420);
               }
               window.dispatchEvent(new Event('themechange'));
             }}
             aria-label="Toggle theme"
           >
-            <img src={themeToggleIcon} className="theme-toggle-icon" alt="Toggle theme" />
+            {isLight ? (
+              // light theme -> show dark crescent
+              <svg className="theme-toggle-icon" viewBox="0 0 24 24" width="28" height="28" aria-hidden="true">
+                <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" fill="#0b1220" />
+              </svg>
+            ) : (
+              // dark theme -> show sun
+              <svg className="theme-toggle-icon" viewBox="0 0 24 24" width="28" height="28" aria-hidden="true">
+                <circle cx="12" cy="12" r="4" fill="#FFD43B" />
+                <g stroke="#FFD43B" strokeWidth="2" strokeLinecap="round">
+                  <line x1="12" y1="1" x2="12" y2="3" />
+                  <line x1="12" y1="21" x2="12" y2="23" />
+                  <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+                  <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+                  <line x1="1" y1="12" x2="3" y2="12" />
+                  <line x1="21" y1="12" x2="23" y2="12" />
+                  <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+                  <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+                </g>
+              </svg>
+            )}
           </button>
         <UserMenu />
       </div>

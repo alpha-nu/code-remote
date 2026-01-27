@@ -3,6 +3,7 @@
  */
 
 import { useEditorStore } from '../store/editorStore';
+import pythonLogo from '../assets/python-logo.svg';
 
 export function ComplexityPanel() {
   const { analysis, isAnalyzing } = useEditorStore();
@@ -15,7 +16,9 @@ export function ComplexityPanel() {
           <span className="complexity-status analyzing">Analyzing...</span>
         </div>
         <div className="complexity-content">
-          <div className="loading-spinner">🔍 Analyzing code complexity...</div>
+          <div className="loading-spinner">
+            <img src={pythonLogo} className="spinner-logo small" alt="analyzing" /> Analyzing code complexity...
+          </div>
         </div>
       </div>
     );

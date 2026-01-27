@@ -38,6 +38,12 @@ interface EditorState {
   analysis: AnalyzeResponse | null;
   setAnalysis: (analysis: AnalyzeResponse | null) => void;
 
+  // Track last analyzed code to know when analysis is stale
+  lastAnalyzedCode: string | null;
+  setLastAnalyzedCode: (code: string | null) => void;
+
+  // Convenience: analyze current code (calls API)
+  analyze: () => Promise<void>;
   autoAnalyze: boolean;
   setAutoAnalyze: (autoAnalyze: boolean) => void;
 
@@ -55,7 +61,12 @@ interface EditorState {
 
 export const useEditorStore = create<EditorState>((set) => ({
   code: DEFAULT_CODE,
-  setCode: (code) => set({ code }),
+  setCode: (code) =>
+    set((state) => ({
+      code,
+      // clear analysis when the new code differs from the last analyzed code
+      analysis: state.lastAnalyzedCode && state.lastAnalyzedCode !== code ? null : state.analysis,
+    })),
 
   isExecuting: false,
   setIsExecuting: (isExecuting) => set({ isExecuting }),
@@ -69,7 +80,24 @@ export const useEditorStore = create<EditorState>((set) => ({
   analysis: null,
   setAnalysis: (analysis) => set({ analysis }),
 
-  autoAnalyze: true,
+  lastAnalyzedCode: null,
+  setLastAnalyzedCode: (code) => set({ lastAnalyzedCode: code }),
+
+  analyze: async () => {
+    const { analyzeCode } = await import('../api/client');
+    set({ isAnalyzing: true, analysis: null });
+    try {
+      const code = useEditorStore.getState().code;
+      const analysis = await analyzeCode({ code });
+      set({ analysis, lastAnalyzedCode: code });
+    } catch {
+      // ignore analysis errors
+    } finally {
+      set({ isAnalyzing: false });
+    }
+  },
+
+  autoAnalyze: false,
   setAutoAnalyze: (autoAnalyze) => set({ autoAnalyze }),
 
   apiError: null,
@@ -85,7 +113,7 @@ export const useEditorStore = create<EditorState>((set) => ({
       result: null,
       isAnalyzing: false,
       analysis: null,
-      autoAnalyze: true,
+      autoAnalyze: false,
       apiError: null,
       timeoutSeconds: 30,
     }),

@@ -28,8 +28,9 @@ const DEV_USER: AuthUser = {
   email: 'dev@localhost',
 };
 
-// Check if dev auth bypass is enabled
-const isDevBypass = import.meta.env.VITE_DEV_AUTH_BYPASS === 'true';
+// Check if dev auth bypass is enabled. Disable during test runs so unit tests
+// exercise the real code paths.
+const isDevBypass = import.meta.env.VITE_DEV_AUTH_BYPASS === 'true' && import.meta.env.MODE !== 'test';
 
 interface AuthState {
   // User state

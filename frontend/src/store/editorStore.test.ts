@@ -2,7 +2,12 @@
  * Unit tests for the editor store.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+// Mock the client module so tests can stub analyzeCode at runtime
+vi.mock('../api/client', () => ({
+  analyzeCode: vi.fn(),
+}));
+import type { AnalyzeResponse } from '../types/execution';
 import { useEditorStore } from './editorStore';
 
 describe('useEditorStore', () => {
@@ -86,9 +91,9 @@ describe('useEditorStore', () => {
       expect(useEditorStore.getState().analysis).toEqual(mockAnalysis);
     });
 
-    it('should have initial autoAnalyze as true', () => {
+    it('should have initial autoAnalyze as false', () => {
       const { autoAnalyze } = useEditorStore.getState();
-      expect(autoAnalyze).toBe(true);
+      expect(autoAnalyze).toBe(false);
     });
 
     it('should toggle autoAnalyze', () => {
@@ -152,6 +157,65 @@ describe('useEditorStore', () => {
       expect(resetState.isExecuting).toBe(false);
       expect(resetState.result).toBeNull();
       expect(resetState.apiError).toBeNull();
+    });
+  });
+
+  describe('analysis lifecycle', () => {
+    it('clears analysis when code changes from last analyzed value', () => {
+      const store = useEditorStore.getState();
+      // set a mock analysis and lastAnalyzedCode
+      const mockAnalysisObj: AnalyzeResponse = {
+        success: true,
+        time_complexity: 'O(n)',
+        space_complexity: 'O(1)',
+        time_explanation: 'ex',
+        space_explanation: 'ex',
+        algorithm_identified: null,
+        suggestions: null,
+        error: null,
+        available: true,
+      };
+
+      store.setAnalysis(mockAnalysisObj);
+
+      store.setLastAnalyzedCode('original');
+
+      // Change to same code -> keep analysis
+      store.setCode('original');
+      expect(useEditorStore.getState().analysis).not.toBeNull();
+
+      // Change to different code -> analysis should be cleared
+      store.setCode('modified');
+      expect(useEditorStore.getState().analysis).toBeNull();
+    });
+
+    it('analyze() calls analyzeCode and sets lastAnalyzedCode', async () => {
+      // Mock the analyzeCode module
+      const mockAnalysis: AnalyzeResponse = {
+        success: true,
+        time_complexity: 'O(n)',
+        space_complexity: 'O(1)',
+        time_explanation: 'ex',
+        space_explanation: 'ex',
+        algorithm_identified: null,
+        suggestions: [],
+        error: null,
+        available: true,
+      };
+
+      // Dynamically mock the module used by the store's analyze() (../api/client)
+      const clientModule = await import('../api/client');
+      // Replace analyzeCode mock implementation
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (clientModule as any).analyzeCode.mockResolvedValue(mockAnalysis);
+
+      const store = useEditorStore.getState();
+      store.setCode('code-to-analyze');
+
+      await store.analyze();
+
+      expect(useEditorStore.getState().analysis).toEqual(mockAnalysis);
+      expect(useEditorStore.getState().lastAnalyzedCode).toBe('code-to-analyze');
     });
   });
 });

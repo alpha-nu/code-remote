@@ -3,8 +3,9 @@
  */
 
 import { useEditorStore } from '../store/editorStore';
-import { analyzeCode, executeCode } from '../api/client';
+import { executeCode } from '../api/client';
 import { UserMenu } from './UserMenu';
+import themeToggleIcon from '../assets/theme-toggle.svg';
 import { useAuthStore } from '../store/authStore';
 
 export function Toolbar() {
@@ -13,14 +14,9 @@ export function Toolbar() {
     isExecuting,
     setIsExecuting,
     setResult,
-    isAnalyzing,
-    setIsAnalyzing,
-    setAnalysis,
-    autoAnalyze,
-    setAutoAnalyze,
     setApiError,
     timeoutSeconds,
-    setTimeoutSeconds,
+    autoAnalyze,
   } = useEditorStore();
 
   const { isAuthenticated } = useAuthStore();
@@ -45,9 +41,9 @@ export function Toolbar() {
       });
       setResult(result);
 
-      // Auto-analyze after successful execution
+      // Auto-analyze after successful execution (use store helper)
       if (autoAnalyze && result.success) {
-        handleAnalyze();
+        await (useEditorStore.getState().analyze());
       }
     } catch (error) {
       if (error instanceof Error) {
@@ -60,22 +56,7 @@ export function Toolbar() {
     }
   };
 
-  const handleAnalyze = async () => {
-    if (isAnalyzing || !code.trim()) return;
-
-    setIsAnalyzing(true);
-    setAnalysis(null);
-
-    try {
-      const analysis = await analyzeCode({ code });
-      setAnalysis(analysis);
-    } catch (error) {
-      // Silently fail analysis - it's optional
-      console.error('Analysis failed:', error);
-    } finally {
-      setIsAnalyzing(false);
-    }
-  };
+  // analysis is provided by the store via `analyze()`
 
   const handleKeyDown = (e: KeyboardEvent) => {
     // Ctrl/Cmd + Enter to run
@@ -99,43 +80,53 @@ export function Toolbar() {
       </div>
 
       <div className="toolbar-center">
-        <button
-          className={`run-button ${isExecuting ? 'running' : ''}`}
-          onClick={handleRun}
-          disabled={isExecuting || !code.trim()}
-        >
-          {isExecuting ? (
-            <>
-              <span className="spinner">⟳</span> Running...
-            </>
-          ) : (
-            <>▶ Run</>
-          )}
-        </button>
-        <span className="keyboard-hint">Ctrl+Enter</span>
+        <div style={{display: 'flex', alignItems: 'center', gap: 12}}>
+          <button
+            className={`run-button ${isExecuting ? 'running' : ''}`}
+            onClick={handleRun}
+            disabled={isExecuting || !code.trim()}
+            aria-label="Run code"
+          >
+            {isExecuting ? (
+              'Running...'
+            ) : (
+              <>
+                <span className="btn-icon">▶</span>
+                <span>Run</span>
+              </>
+            )}
+          </button>
+
+          <span className="keyboard-hint">Ctrl+Enter</span>
+        </div>
       </div>
 
       <div className="toolbar-right">
-        <label className="auto-analyze-label">
-          <input
-            type="checkbox"
-            checked={autoAnalyze}
-            onChange={(e) => setAutoAnalyze(e.target.checked)}
-          />
-          Auto-analyze
-        </label>
-        <label className="timeout-label">
-          Timeout:
-          <select
-            value={timeoutSeconds}
-            onChange={(e) => setTimeoutSeconds(Number(e.target.value))}
-            disabled={isExecuting}
+          {/* auto-analyze and timeout moved to Output tools */}
+          <button
+            className="theme-toggle"
+            onClick={() => {
+              const root = document.documentElement;
+              const isLight = root.classList.contains('light-theme');
+              if (isLight) {
+                root.classList.remove('light-theme');
+                localStorage.setItem('theme', 'dark');
+              } else {
+                root.classList.add('light-theme');
+                localStorage.setItem('theme', 'light');
+              }
+              // animate the icon briefly
+              const img = document.querySelector('.theme-toggle-icon');
+              if (img) {
+                img.classList.add('animate');
+                setTimeout(() => img.classList.remove('animate'), 420);
+              }
+              window.dispatchEvent(new Event('themechange'));
+            }}
+            aria-label="Toggle theme"
           >
-            <option value={5}>5s</option>
-            <option value={10}>10s</option>
-            <option value={30}>30s</option>
-          </select>
-        </label>
+            <img src={themeToggleIcon} className="theme-toggle-icon" alt="Toggle theme" />
+          </button>
         <UserMenu />
       </div>
     </div>

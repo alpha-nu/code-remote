@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Half sun / half moon simple icon -->
+  <defs>
+    <linearGradient id="sun" x1="0" x2="1">
+      <stop offset="0" stop-color="#FFD166" />
+      <stop offset="1" stop-color="#FFB703" />
+    </linearGradient>
+  </defs>
+  <g transform="translate(8,8) scale(0.75)">
+    <circle cx="24" cy="24" r="14" fill="url(#sun)" />
+    <path d="M34 24a14 14 0 1 1-18.9-13.5 10 10 0 1 0 18.9 13.5z" fill="#0f1724" opacity="0.9" />
+  </g>
+</svg>

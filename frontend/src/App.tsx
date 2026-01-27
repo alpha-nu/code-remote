@@ -31,6 +31,14 @@ function AppContent() {
     initialize();
   }, [initialize]);
 
+  useEffect(() => {
+    // Apply persisted theme preference
+    const theme = typeof window !== 'undefined' ? localStorage.getItem('theme') : null;
+    const root = document.documentElement;
+    if (theme === 'light') root.classList.add('light-theme');
+    else root.classList.remove('light-theme');
+  }, []);
+
   return (
     <div className="app">
       <Toolbar />

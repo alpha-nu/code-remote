@@ -1,0 +1,6 @@
+<!-- Generic gear spinner: neutral silver color for light/dark themes -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Spinner">
+  <g fill="#9CA3AF" stroke="#9CA3AF" stroke-width="0">
+    <path d="M62 36v-8l-6-1c-1-3-2-5-4-7l4-5-6-6-5 4c-2-2-4-3-7-4l-1-6h-8l-1 6c-3 1-5 2-7 4l-5-4-6 6 4 5c-2 2-3 4-4 7l-6 1v8l6 1c1 3 2 5 4 7l-4 5 6 6 5-4c2 2 4 3 7 4l1 6h8l1-6c3-1 5-2 7-4l5 4 6-6-4-5c2-2 3-4 4-7l6-1zM32 42a10 10 0 110-20 10 10 0 010 20z"/>
+  </g>
+</svg>

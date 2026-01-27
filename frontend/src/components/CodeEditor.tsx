@@ -5,7 +5,7 @@
 import Editor from '@monaco-editor/react';
 import { useEffect, useState } from 'react';
 import { useEditorStore } from '../store/editorStore';
-import pythonLogo from '../assets/python-logo.svg';
+import spinner from '../assets/spinner.svg';
 
 export function CodeEditor() {
   const { code, setCode, isExecuting } = useEditorStore();
@@ -49,7 +49,7 @@ export function CodeEditor() {
           lineDecorationsWidth: 10,
           lineNumbersMinChars: 3,
         }}
-        loading={<div className="editor-loading"><img src={pythonLogo} className="spinner-logo" alt="loading" /> Loading editor...</div>}
+        loading={<div className="editor-loading"><img src={spinner} className="spinner-logo" alt="loading" /> Loading editor...</div>}
       />
     </div>
   );

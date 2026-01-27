@@ -4,7 +4,7 @@
 
 import { useEditorStore } from '../store/editorStore';
 import { ComplexityPanel } from './ComplexityPanel';
-import pythonLogo from '../assets/python-logo.svg';
+import spinner from '../assets/spinner.svg';
 
 export function OutputPanel() {
   const {
@@ -65,7 +65,7 @@ export function OutputPanel() {
       <div className="output-content">
         {isExecuting && (
           <div className="loading-spinner">
-            <img src={pythonLogo} className="spinner-logo" alt="executing" /> Executing code...
+            <img src={spinner} className="spinner-logo" alt="executing" /> Executing code...
           </div>
         )}
 

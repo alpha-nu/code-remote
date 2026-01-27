@@ -129,7 +129,7 @@ class TestGeminiProviderIntegration:
     def test_gemini_provider_is_configured(self):
         """Test is_configured with API key."""
         with (
-            patch("analyzer.providers.gemini.genai"),
+            patch("google.genai.Client"),
             patch("analyzer.providers.gemini.settings") as mock_settings,
         ):
             mock_settings.gemini_api_key = ""
@@ -148,7 +148,7 @@ class TestGeminiProviderIntegration:
 
     def test_parse_response_strips_markdown(self):
         """Test that markdown code blocks are stripped from response."""
-        with patch("analyzer.providers.gemini.genai"):
+        with patch("google.genai.Client"):
             from analyzer.providers.gemini import GeminiProvider
 
             provider = GeminiProvider(api_key="test-key")
@@ -160,7 +160,7 @@ class TestGeminiProviderIntegration:
 
     def test_parse_response_handles_plain_json(self):
         """Test that plain JSON is parsed correctly."""
-        with patch("analyzer.providers.gemini.genai"):
+        with patch("google.genai.Client"):
             from analyzer.providers.gemini import GeminiProvider
 
             provider = GeminiProvider(api_key="test-key")

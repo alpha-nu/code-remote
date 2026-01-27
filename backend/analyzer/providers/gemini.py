@@ -4,7 +4,8 @@ import json
 import logging
 from pathlib import Path
 
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 
 from analyzer.llm_provider import ComplexityResult, LLMProvider
 from common.config import settings
@@ -25,12 +26,12 @@ class GeminiProvider(LLMProvider):
             api_key: Gemini API key. If not provided, uses settings.
         """
         self.api_key = api_key or settings.gemini_api_key
-        self._model = None
+        self._client: genai.Client | None = None
         self._prompt_template: str | None = None
+        self._model = "gemini-3-flash-preview"  # Updated model for new SDK
 
         if self.api_key:
-            genai.configure(api_key=self.api_key)
-            self._model = genai.GenerativeModel("gemini-3-flash-preview")
+            self._client = genai.Client(api_key=self.api_key)
 
     def is_configured(self) -> bool:
         """Check if Gemini API key is configured."""
@@ -63,7 +64,7 @@ Respond with JSON only:
         Returns:
             ComplexityResult with analysis
         """
-        if not self.is_configured():
+        if not self.is_configured() or self._client is None:
             return ComplexityResult(
                 time_complexity="Unknown",
                 space_complexity="Unknown",
@@ -75,16 +76,17 @@ Respond with JSON only:
         try:
             prompt = self._load_prompt_template().format(code=code)
 
-            # Generate response
-            response = await self._model.generate_content_async(
-                prompt,
-                generation_config=genai.types.GenerationConfig(
+            # Generate response using the new SDK async API
+            response = await self._client.aio.models.generate_content(
+                model=self._model,
+                contents=prompt,
+                config=types.GenerateContentConfig(
                     temperature=0.1,  # Low temperature for consistent analysis
                     max_output_tokens=1024,
                 ),
             )
 
-            raw_text = response.text.strip()
+            raw_text = response.text.strip() if response.text else ""
 
             # Parse JSON response
             return self._parse_response(raw_text)

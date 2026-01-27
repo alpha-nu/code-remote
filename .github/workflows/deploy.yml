@@ -91,6 +91,9 @@ jobs:
       ecr_repository_url: ${{ steps.outputs.outputs.ecr_repository_url }}
       eks_cluster_name: ${{ steps.outputs.outputs.eks_cluster_name }}
       api_endpoint: ${{ steps.outputs.outputs.api_endpoint }}
+      frontend_bucket_name: ${{ steps.outputs.outputs.frontend_bucket_name }}
+      frontend_distribution_id: ${{ steps.outputs.outputs.frontend_distribution_id }}
+      frontend_url: ${{ steps.outputs.outputs.frontend_url }}
     steps:
       - uses: actions/checkout@v4
 
@@ -130,9 +133,12 @@ jobs:
         id: outputs
         working-directory: infra/pulumi
         run: |
-          echo "ecr_repository_url=$(pulumi stack output ecr_repository_url --stack ${{ needs.setup.outputs.stack }})" >> $GITHUB_OUTPUT
+          echo "ecr_repository_url=$(pulumi stack output ecr_api_repository_url --stack ${{ needs.setup.outputs.stack }})" >> $GITHUB_OUTPUT
           echo "eks_cluster_name=$(pulumi stack output eks_cluster_name --stack ${{ needs.setup.outputs.stack }})" >> $GITHUB_OUTPUT
           echo "api_endpoint=$(pulumi stack output api_endpoint --stack ${{ needs.setup.outputs.stack }} 2>/dev/null || echo '')" >> $GITHUB_OUTPUT
+          echo "frontend_bucket_name=$(pulumi stack output frontend_bucket_name --stack ${{ needs.setup.outputs.stack }})" >> $GITHUB_OUTPUT
+          echo "frontend_distribution_id=$(pulumi stack output frontend_distribution_id --stack ${{ needs.setup.outputs.stack }})" >> $GITHUB_OUTPUT
+          echo "frontend_url=$(pulumi stack output frontend_url --stack ${{ needs.setup.outputs.stack }})" >> $GITHUB_OUTPUT
 
   # Build and push container images
   build-images:
@@ -254,11 +260,76 @@ jobs:
             -n code-remote \
             -- curl -s http://api.code-remote.svc.cluster.local/health || true
 
+  # Deploy frontend to S3 + CloudFront
+  deploy-frontend:
+    name: Deploy Frontend
+    runs-on: ubuntu-latest
+    needs: [setup, infrastructure]
+    environment: ${{ needs.setup.outputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: frontend
+        env:
+          VITE_API_URL: ${{ needs.infrastructure.outputs.api_endpoint }}
+          VITE_COGNITO_USER_POOL_ID: ${{ secrets.COGNITO_USER_POOL_ID }}
+          VITE_COGNITO_CLIENT_ID: ${{ secrets.COGNITO_CLIENT_ID }}
+          VITE_COGNITO_REGION: ${{ env.AWS_REGION }}
+        run: npm run build
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy to S3
+        working-directory: frontend
+        run: |
+          aws s3 sync dist/ s3://${{ needs.infrastructure.outputs.frontend_bucket_name }}/ \
+            --delete \
+            --cache-control "public, max-age=31536000, immutable" \
+            --exclude "index.html" \
+            --exclude "*.json"
+
+          # Upload index.html and JSON with shorter cache
+          aws s3 cp dist/index.html s3://${{ needs.infrastructure.outputs.frontend_bucket_name }}/index.html \
+            --cache-control "public, max-age=0, must-revalidate"
+
+          # Upload any JSON config files with no cache
+          find dist -name "*.json" -exec aws s3 cp {} s3://${{ needs.infrastructure.outputs.frontend_bucket_name }}/$(basename {}) \
+            --cache-control "public, max-age=0, must-revalidate" \; 2>/dev/null || true
+
+      - name: Invalidate CloudFront cache
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ needs.infrastructure.outputs.frontend_distribution_id }} \
+            --paths "/index.html" "/*.json"
+
+      - name: Output frontend URL
+        run: |
+          echo "## Frontend Deployed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**URL:** ${{ needs.infrastructure.outputs.frontend_url }}" >> $GITHUB_STEP_SUMMARY
+
   # Run smoke tests after deployment
   smoke-tests:
     name: Smoke Tests
     runs-on: ubuntu-latest
-    needs: [setup, infrastructure, deploy-k8s]
+    needs: [setup, infrastructure, deploy-k8s, deploy-frontend]
     environment: ${{ needs.setup.outputs.environment }}
     if: needs.setup.outputs.environment != 'prod'
     steps:
@@ -293,7 +364,7 @@ jobs:
   notify:
     name: Notify
     runs-on: ubuntu-latest
-    needs: [setup, deploy-k8s, smoke-tests]
+    needs: [setup, infrastructure, deploy-k8s, deploy-frontend, smoke-tests]
     if: always()
     steps:
       - name: Deployment Summary
@@ -305,8 +376,10 @@ jobs:
           echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
           echo "**Triggered by:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Frontend URL:** ${{ needs.infrastructure.outputs.frontend_url }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
 
-          if [ "${{ needs.deploy-k8s.result }}" = "success" ]; then
+          if [ "${{ needs.deploy-k8s.result }}" = "success" ] && [ "${{ needs.deploy-frontend.result }}" = "success" ]; then
             echo "✅ Deployment successful!" >> $GITHUB_STEP_SUMMARY
           else
             echo "❌ Deployment failed!" >> $GITHUB_STEP_SUMMARY

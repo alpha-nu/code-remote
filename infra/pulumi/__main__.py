@@ -9,6 +9,7 @@ import pulumi
 from components.cognito import CognitoComponent
 from components.ecr import ECRComponent
 from components.eks import EKSComponent
+from components.frontend import FrontendComponent
 from components.secrets import SecretsComponent
 from components.vpc import VPCComponent
 
@@ -73,6 +74,15 @@ eks = EKSComponent(
 )
 
 # =============================================================================
+# Frontend - S3 + CloudFront
+# =============================================================================
+frontend = FrontendComponent(
+    f"{environment}-frontend",
+    environment=environment,
+    tags=common_tags,
+)
+
+# =============================================================================
 # Stack Outputs
 # =============================================================================
 
@@ -97,3 +107,10 @@ pulumi.export("cognito_user_pool_endpoint", cognito.user_pool.endpoint)
 pulumi.export("eks_cluster_name", eks.cluster.name)
 pulumi.export("eks_cluster_endpoint", eks.cluster.endpoint)
 pulumi.export("eks_oidc_provider_arn", eks.oidc_provider.arn)
+
+# Frontend outputs
+pulumi.export("frontend_bucket_name", frontend.bucket.bucket)
+pulumi.export("frontend_distribution_id", frontend.distribution.id)
+pulumi.export(
+    "frontend_url", frontend.distribution.domain_name.apply(lambda d: f"https://{d}")
+)

@@ -194,10 +194,9 @@ input[type="checkbox"] {
 
 .theme-toggle {
   margin-left: 12px;
-  /* match `user-button` sizing: padding 0.35rem 0.65rem and avatar height 1.75rem */
-  height: 41px;
-  padding: 0 10px;
-  border-radius: 6px;
+  /* match `.user-button` sizing exactly */
+  padding: 0.35rem 0.65rem;
+  border-radius: 4px;
   background: var(--bg-tertiary);
   color: var(--text-secondary);
   border: 1px solid var(--border-color);
@@ -205,19 +204,9 @@ input[type="checkbox"] {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-}
-
-.theme-toggle {
-  margin-left: 12px;
-  padding: 8px;
-  border-radius: 8px;
-  background: var(--bg-tertiary);
-  color: var(--text-secondary);
-  border: 1px solid var(--border-color);
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  /* ensure height matches avatar + vertical padding: 1.75rem + 0.7rem = 2.45rem */
+  min-height: calc(1.75rem + 0.7rem);
+  height: auto;
 }
 
 .theme-toggle-icon {

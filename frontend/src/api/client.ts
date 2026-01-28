@@ -2,7 +2,7 @@
  * API client for backend services.
  */
 
-import axios from 'axios';
+import axios, { AxiosError } from 'axios';
 import type {
   AnalyzeRequest,
   AnalyzeResponse,
@@ -19,7 +19,63 @@ const apiClient = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  timeout: 35000, // 35s timeout (slightly more than max execution time)
 });
+
+/**
+ * Format API errors into user-friendly messages.
+ */
+function formatApiError(error: AxiosError): Error {
+  const url = error.config?.url || 'unknown endpoint';
+  const baseURL = error.config?.baseURL || API_BASE_URL;
+
+  // Network error (no response received)
+  if (error.code === 'ERR_NETWORK' || !error.response) {
+    return new Error(
+      `Unable to connect to backend at ${baseURL}.\n` +
+      `Please ensure the backend server is running.\n\n` +
+      `If running locally: cd backend && uvicorn api.main:app --reload\n` +
+      `Endpoint: ${url}`
+    );
+  }
+
+  // Timeout
+  if (error.code === 'ECONNABORTED') {
+    return new Error(`Request timed out. The server took too long to respond.`);
+  }
+
+  // Server responded with error
+  const status = error.response.status;
+  const data = error.response.data as Record<string, unknown>;
+
+  // Try to extract error detail from response
+  const detail = data?.detail || data?.message || data?.error;
+
+  switch (status) {
+    case 400:
+      return new Error(`Bad Request: ${detail || 'Invalid request data'}`);
+    case 401:
+      return new Error(`Unauthorized: ${detail || 'Please sign in again'}`);
+    case 403:
+      return new Error(`Forbidden: ${detail || 'You do not have permission'}`);
+    case 404:
+      return new Error(`Not Found: ${detail || `Endpoint ${url} not found`}`);
+    case 422:
+      return new Error(`Validation Error: ${detail || 'Invalid input data'}`);
+    case 429:
+      return new Error(`Rate Limited: Too many requests. Please try again later.`);
+    case 500:
+      return new Error(`Server Error: ${detail || 'Internal server error'}`);
+    case 502:
+      return new Error(`Bad Gateway: Backend server is not responding. Is it deployed?`);
+    case 503:
+      return new Error(`Service Unavailable: ${detail || 'Server is temporarily unavailable'}`);
+    case 504:
+      return new Error(`Gateway Timeout: Backend server took too long to respond.`);
+    default:
+      return new Error(`Error ${status}: ${detail || error.message}`);
+  }
+}
 
 /**
  * Request interceptor to attach JWT token to authenticated requests.
@@ -36,16 +92,16 @@ apiClient.interceptors.request.use(
 );
 
 /**
- * Response interceptor to handle 401 errors.
+ * Response interceptor to handle errors with better messages.
  */
 apiClient.interceptors.response.use(
   (response) => response,
-  async (error) => {
+  async (error: AxiosError) => {
     if (error.response?.status === 401) {
       // Token expired or invalid - clear auth state
       useAuthStore.getState().logout();
     }
-    return Promise.reject(error);
+    return Promise.reject(formatApiError(error));
   }
 );
 

@@ -13,7 +13,6 @@ import sys
 from typing import NoReturn
 
 from common.logging import get_logger
-
 from executor.models import ExecutionRequest
 from executor.runner import PythonRunner
 

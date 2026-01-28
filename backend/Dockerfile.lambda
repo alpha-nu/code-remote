@@ -1,0 +1,26 @@
+# Lambda container image for FastAPI backend
+# Uses AWS Lambda Python runtime base image
+
+FROM public.ecr.aws/lambda/python:3.11
+
+# Install uv for fast dependency management
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
+
+# Set working directory
+WORKDIR ${LAMBDA_TASK_ROOT}
+
+# Copy dependency files
+COPY pyproject.toml uv.lock ./
+
+# Install dependencies using uv (faster than pip)
+RUN uv pip install --system --no-cache -r pyproject.toml
+
+# Copy application code
+COPY api/ ./api/
+COPY common/ ./common/
+COPY analyzer/ ./analyzer/
+COPY executor/ ./executor/
+
+# Set the Lambda handler
+# Format: module.function
+CMD ["api.lambda_handler.handler"]

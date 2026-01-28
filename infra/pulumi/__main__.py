@@ -1,16 +1,24 @@
 """Code Remote Infrastructure - Main Entry Point.
 
 This module orchestrates all AWS infrastructure components for the
-Code Remote application using Pulumi.
+Code Remote application using Pulumi with a serverless architecture.
+
+Architecture:
+- API: AWS Lambda + API Gateway (HTTP API v2)
+- Executor: AWS Fargate (ECS) for sandboxed code execution
+- Auth: AWS Cognito
+- Frontend: S3 + CloudFront CDN
+- Secrets: AWS Secrets Manager
 """
 
 import pulumi
 
 from components.cognito import CognitoComponent
 from components.ecr import ECRComponent
-from components.eks import EKSComponent
+from components.fargate_executor import FargateExecutorComponent
 from components.frontend import FrontendComponent
 from components.secrets import SecretsComponent
+from components.serverless_api import ServerlessAPIComponent
 from components.vpc import VPCComponent
 
 # Get configuration
@@ -63,13 +71,42 @@ cognito = CognitoComponent(
 )
 
 # =============================================================================
-# EKS - Kubernetes Cluster
+# Fargate Executor - Sandboxed Code Execution
 # =============================================================================
-eks = EKSComponent(
-    f"{environment}-eks",
+executor = FargateExecutorComponent(
+    f"{environment}-executor",
     environment=environment,
     vpc_id=vpc.vpc.id,
     subnet_ids=vpc.private_subnet_ids,
+    ecr_repository_url=ecr.executor_repository.repository_url,
+    image_tag="latest",
+    tags=common_tags,
+)
+
+# =============================================================================
+# Serverless API - Lambda + API Gateway
+# =============================================================================
+api = ServerlessAPIComponent(
+    f"{environment}-api",
+    environment=environment,
+    vpc_id=vpc.vpc.id,
+    subnet_ids=vpc.private_subnet_ids,
+    ecr_repository_url=ecr.api_repository.repository_url,
+    cognito_user_pool_arn=cognito.user_pool.arn,
+    cognito_user_pool_client_id=cognito.user_pool_client.id,
+    secrets_arn=secrets.gemini_api_key.arn,
+    fargate_cluster_arn=executor.cluster.arn,
+    fargate_task_definition_arn=executor.task_definition.arn,
+    fargate_subnets=vpc.private_subnet_ids.apply(lambda ids: ",".join(ids)),
+    fargate_security_group_id=executor.security_group.id,
+    image_tag="latest",
+    env_vars={
+        "COGNITO_USER_POOL_ID": cognito.user_pool.id,
+        "COGNITO_CLIENT_ID": cognito.user_pool_client.id,
+        "COGNITO_REGION": "us-east-1",
+        "DEBUG": "false" if environment == "prod" else "true",
+        "CORS_ORIGINS": '["*"]',  # API Gateway handles CORS
+    },
     tags=common_tags,
 )
 
@@ -103,10 +140,15 @@ pulumi.export("cognito_user_pool_id", cognito.user_pool.id)
 pulumi.export("cognito_user_pool_client_id", cognito.user_pool_client.id)
 pulumi.export("cognito_user_pool_endpoint", cognito.user_pool.endpoint)
 
-# EKS outputs
-pulumi.export("eks_cluster_name", eks.cluster.name)
-pulumi.export("eks_cluster_endpoint", eks.cluster.endpoint)
-pulumi.export("eks_oidc_provider_arn", eks.oidc_provider.arn)
+# Executor outputs
+pulumi.export("executor_cluster_name", executor.cluster.name)
+pulumi.export("executor_cluster_arn", executor.cluster.arn)
+pulumi.export("executor_task_definition_arn", executor.task_definition.arn)
+pulumi.export("executor_security_group_id", executor.security_group.id)
+
+# API outputs
+pulumi.export("api_endpoint", api.api_endpoint)
+pulumi.export("api_function_name", api.function.name)
 
 # Frontend outputs
 pulumi.export("frontend_bucket_name", frontend.bucket.bucket)

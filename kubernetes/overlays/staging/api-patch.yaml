@@ -1,7 +1,0 @@
-# Staging environment - moderate replicas
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: api
-spec:
-  replicas: 2

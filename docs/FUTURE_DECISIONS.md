@@ -181,3 +181,326 @@ Groups by responsibility:
 - Component rendering tests (CodeEditor, OutputPanel, ComplexityPanel, Toolbar)
 - Integration tests for API calls
 - End-to-end tests with Playwright or Cypress
+
+---
+
+## Multi-Language Execution Engine (TypeScript, C#)
+
+**Status:** Planning / Future Vision  
+**Date Added:** January 29, 2026
+
+### Current State (Python Only)
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        Frontend                              │
+│  Monaco Editor (Python mode) → /execute → Python output     │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    Lambda Executor                           │
+│  exec(code, restricted_globals) → stdout/stderr             │
+│  - Python-only sandbox via restricted builtins              │
+│  - SAFE_IMPORTS whitelist                                   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Target State (Multi-Language)
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        Frontend                              │
+│  Monaco Editor (auto-detect) → /execute?lang=X → output     │
+│  Language selector: Python | TypeScript | C#                │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                      API Gateway                             │
+│  POST /execute { code, language }                           │
+└─────────────────────────────────────────────────────────────┘
+                              │
+              ┌───────────────┼───────────────┐
+              ▼               ▼               ▼
+      ┌──────────────┐ ┌──────────────┐ ┌──────────────┐
+      │ Python Exec  │ │   TS Exec    │ │   C# Exec    │
+      │  (Lambda)    │ │  (Lambda)    │ │  (Lambda)    │
+      │  Python 3.11 │ │  Node 20 +   │ │  .NET 8      │
+      │              │ │  ts-node     │ │  dotnet run  │
+      └──────────────┘ └──────────────┘ └──────────────┘
+```
+
+### API Layer Changes
+
+**Current Schema:**
+```python
+class ExecutionRequest(BaseModel):
+    code: str
+```
+
+**New Schema:**
+```python
+class Language(str, Enum):
+    PYTHON = "python"
+    TYPESCRIPT = "typescript"
+    CSHARP = "csharp"
+
+class ExecutionRequest(BaseModel):
+    code: str
+    language: Language = Language.PYTHON  # backward compatible
+    
+class ExecutionResponse(BaseModel):
+    stdout: str
+    stderr: str
+    exit_code: int
+    execution_time_ms: float
+    language: Language
+    runtime_version: str  # "Python 3.11", "Node 20.x", ".NET 8"
+```
+
+### Executor Architecture Options
+
+#### Option A: Single Polyglot Lambda (Simple but Limited)
+```
+┌─────────────────────────────────────────┐
+│  Lambda Container (1.5GB image)         │
+│  ├── Python 3.11                        │
+│  ├── Node 20 + TypeScript               │
+│  └── .NET 8 SDK                         │
+│                                         │
+│  Router dispatches by language          │
+└─────────────────────────────────────────┘
+```
+- ✅ Simple deployment
+- ❌ Huge container image (~1.5GB+)
+- ❌ Cold starts suffer
+- ❌ Can't tune memory/timeout per language
+
+#### Option B: Lambda per Language (Recommended ✅)
+```
+┌──────────────┐  ┌──────────────┐  ┌──────────────┐
+│ python-exec  │  │   ts-exec    │  │  csharp-exec │
+│ ~150MB image │  │ ~300MB image │  │ ~400MB image │
+│ 256MB memory │  │ 512MB memory │  │ 512MB memory │
+│ 30s timeout  │  │ 30s timeout  │  │ 30s timeout  │
+└──────────────┘  └──────────────┘  └──────────────┘
+```
+- ✅ Right-sized containers
+- ✅ Independent scaling & cold start optimization
+- ✅ Language-specific security hardening
+- ❌ More Pulumi resources to manage
+
+#### Option C: Container-per-Execution (Maximum Isolation)
+```
+API → SQS → ECS Fargate Task (ephemeral)
+            └── Fresh container per execution
+            └── Destroyed after completion
+```
+- ✅ Perfect isolation (no state leakage)
+- ✅ Can run untrusted code with gVisor
+- ❌ Slow (~5-10s cold start per execution)
+- ❌ More expensive
+
+**Recommendation:** Start with **Option B** for Lambda, move to **Option C** for premium/enterprise tier.
+
+### Language-Specific Sandbox Strategies
+
+#### Python (Current)
+```python
+# Restricted builtins + AST validation
+SAFE_IMPORTS = {"math", "json", "collections", ...}
+exec(code, {"__builtins__": SAFE_BUILTINS})
+```
+
+#### TypeScript
+```typescript
+// Approach: Compile then run in VM2 sandbox
+import { VM } from 'vm2';
+import * as ts from 'typescript';
+
+const js = ts.transpileModule(code, { 
+  compilerOptions: { module: ts.ModuleKind.CommonJS }
+}).outputText;
+
+const vm = new VM({
+  timeout: 30000,
+  sandbox: { console, Math, JSON, Date },
+  eval: false,
+  wasm: false,
+});
+const result = vm.run(js);
+```
+
+Blocked capabilities:
+- `require()` / `import` (no filesystem access)
+- `process`, `child_process`, `fs`, `net`
+- `eval()`, `Function()` constructor
+
+#### C#
+```csharp
+// Approach: Roslyn scripting with restricted references
+using Microsoft.CodeAnalysis.CSharp.Scripting;
+using Microsoft.CodeAnalysis.Scripting;
+
+var options = ScriptOptions.Default
+    .WithReferences(typeof(object).Assembly)  // mscorlib only
+    .WithImports("System", "System.Linq", "System.Collections.Generic");
+    // NO System.IO, System.Net, System.Diagnostics
+
+var result = await CSharpScript.EvaluateAsync(code, options);
+```
+
+Blocked namespaces:
+- `System.IO` (filesystem)
+- `System.Net` (network)
+- `System.Diagnostics` (process spawning)
+- `System.Reflection.Emit` (runtime code gen)
+
+### Complexity Analysis (Gemini) Changes
+
+**Current prompt structure:**
+```
+Analyze this Python code for time/space complexity...
+```
+
+**New prompt with language awareness:**
+```python
+COMPLEXITY_PROMPT = """
+Analyze this {language} code for algorithmic complexity.
+
+Language-specific considerations:
+{language_hints}
+
+Code:
+```{language}
+{code}
+```
+"""
+
+LANGUAGE_HINTS = {
+    "python": "Consider list comprehensions, generator expressions, dict operations",
+    "typescript": "Consider Array methods, spread operators, async/await patterns",
+    "csharp": "Consider LINQ operations, async/await, collection initializers",
+}
+```
+
+### Frontend Changes
+
+#### Monaco Editor Multi-Language Support
+```typescript
+// Current: hardcoded Python
+<Editor language="python" ... />
+
+// New: dynamic language
+const [language, setLanguage] = useState<'python' | 'typescript' | 'csharp'>('python');
+
+<LanguageSelector value={language} onChange={setLanguage} />
+<Editor 
+  language={language === 'csharp' ? 'csharp' : language} 
+  value={code}
+  ...
+/>
+```
+
+#### Boilerplate Templates
+```typescript
+const TEMPLATES = {
+  python: 'def main():\n    print("Hello, World!")\n\nmain()',
+  typescript: 'function main(): void {\n    console.log("Hello, World!");\n}\n\nmain();',
+  csharp: 'using System;\n\nConsole.WriteLine("Hello, World!");',
+};
+```
+
+### Infrastructure (Pulumi) Changes
+
+```python
+# New: One executor Lambda per language
+class ExecutorComponent(pulumi.ComponentResource):
+    def __init__(self, name: str, language: str, ...):
+        
+        # Language-specific container
+        self.ecr_repo = aws.ecr.Repository(f"{name}-{language}-repo")
+        
+        # Language-specific Lambda
+        self.function = aws.lambda_.Function(
+            f"{name}-{language}-executor",
+            image_uri=self.ecr_repo.repository_url,
+            memory_size=MEMORY_BY_LANGUAGE[language],  # 256, 512, 512
+            timeout=30,
+            ...
+        )
+
+# In __main__.py
+python_executor = ExecutorComponent("exec", "python", ...)
+typescript_executor = ExecutorComponent("exec", "typescript", ...)
+csharp_executor = ExecutorComponent("exec", "csharp", ...)
+
+# API Gateway routes to appropriate Lambda
+# POST /execute?lang=python → python_executor
+# POST /execute?lang=typescript → typescript_executor
+```
+
+### Migration Phases
+
+```
+Phase 1: Foundation (1-2 weeks)
+├── Add language field to API schema
+├── Refactor executor_service to use strategy pattern
+├── Update frontend with language selector
+└── Keep Python as only working language
+
+Phase 2: TypeScript Support (1-2 weeks)
+├── Create TypeScript executor Lambda
+├── Implement VM2 sandbox
+├── Add TS-specific complexity prompts
+├── Integration tests
+
+Phase 3: C# Support (1-2 weeks)
+├── Create C# executor Lambda (.NET 8)
+├── Implement Roslyn scripting sandbox
+├── Add C#-specific complexity prompts
+├── Integration tests
+
+Phase 4: Production Hardening (1 week)
+├── Per-language rate limiting
+├── Monitoring & alerting per language
+├── Cost tracking per language
+└── Documentation
+```
+
+### Cost Implications
+
+| Resource | Python Only | + TypeScript | + C# |
+|----------|-------------|--------------|------|
+| Lambda invocations | $X | $X (shared) | $X (shared) |
+| ECR storage | ~150MB | +300MB | +400MB |
+| Container builds | 1 | 2 | 3 |
+| Cold starts to optimize | 1 | 2 | 3 |
+
+ECR costs are minimal (~$0.10/GB/month). Main cost driver remains Lambda invocations which are shared across languages.
+
+### Alternative: Use Existing Multi-Language Services
+
+Instead of building custom executors, integrate existing services:
+
+| Service | Pros | Cons |
+|---------|------|------|
+| **Judge0** | 60+ languages, battle-tested | Self-host or pay per execution |
+| **Piston** | Open source, Docker-based | Self-host on ECS/K8s |
+| **Sphere Engine** | Enterprise, secure | Expensive |
+
+This would change the architecture to:
+```
+Your API → Judge0/Piston API → Execution result
+```
+
+**Trade-off:** Less control, but faster to market.
+
+### Summary: Recommended Runway
+
+1. **Short-term:** Document multi-language as future goal ✅ (this document)
+2. **Phase 1:** Add `language` field to API, strategy pattern in executor
+3. **Phase 2:** TypeScript via Node Lambda + VM2 sandbox
+4. **Phase 3:** C# via .NET Lambda + Roslyn scripting
+5. **Long-term:** Consider managed service (Judge0) for 60+ languages

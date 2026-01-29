@@ -538,7 +538,8 @@ input[type="checkbox"] {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: var(--accent-blue);
+  /* keep bold but use the same color as the body text for consistency */
+  color: var(--text-primary);
 }
 
 .complexity-status {
@@ -630,7 +631,8 @@ input[type="checkbox"] {
 }
 
 .suggestions strong {
-  color: var(--accent-green);
+  /* Keep bold but use body text color for consistency */
+  color: var(--text-primary);
 }
 
 .suggestions ul {

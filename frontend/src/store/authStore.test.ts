@@ -234,13 +234,19 @@ describe('useAuthStore', () => {
     it('should return token when authenticated', async () => {
       const { fetchAuthSession } = await import('aws-amplify/auth');
 
+      // Note: getAccessToken actually returns the ID token (not access token)
+      // because API Gateway JWT authorizer requires the 'aud' claim which is
+      // only present in the ID token
       vi.mocked(fetchAuthSession).mockResolvedValue({
         tokens: {
           accessToken: {
             toString: () => 'access-token-123',
             payload: {},
           },
-          idToken: undefined,
+          idToken: {
+            toString: () => 'id-token-123',
+            payload: {},
+          },
         },
         credentials: undefined,
         identityId: undefined,
@@ -249,7 +255,8 @@ describe('useAuthStore', () => {
 
       const token = await useAuthStore.getState().getAccessToken();
 
-      expect(token).toBe('access-token-123');
+      // Returns ID token, not access token
+      expect(token).toBe('id-token-123');
     });
 
     it('should return null when not authenticated', async () => {

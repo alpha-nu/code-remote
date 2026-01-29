@@ -1,12 +1,13 @@
-# Continuous Deployment - deploys to AWS on release branch pushes
+# Continuous Deployment - Serverless Architecture
+# Deploys to AWS Lambda + S3/CloudFront
 name: Deploy
 
 on:
   push:
     branches:
-      - 'release/dev'
-      - 'release/staging'
-      - 'release/prod'
+      - main           # Deploy to dev on main branch push
+    tags:
+      - 'v*'           # Deploy to prod on version tags (v1.0.0, v1.2.3, etc.)
   workflow_dispatch:
     inputs:
       environment:
@@ -15,37 +16,57 @@ on:
         type: choice
         options:
           - dev
-          - staging
           - prod
+
+# Prevent concurrent deployments to the same environment
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
 
 env:
   AWS_REGION: us-east-1
-  PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
 
 jobs:
-  # Determine which environment to deploy to
+  # ============================================================
+  # Setup: Determine environment and configuration
+  # ============================================================
   setup:
-    name: Setup Environment
+    name: Setup
     runs-on: ubuntu-latest
     outputs:
       environment: ${{ steps.env.outputs.environment }}
       stack: ${{ steps.env.outputs.stack }}
+      should_deploy: ${{ steps.env.outputs.should_deploy }}
     steps:
       - name: Determine environment
         id: env
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             ENV="${{ github.event.inputs.environment }}"
+          elif [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            ENV="prod"
           else
-            ENV="${GITHUB_REF#refs/heads/release/}"
+            ENV="dev"
           fi
+
           echo "environment=$ENV" >> $GITHUB_OUTPUT
           echo "stack=code-remote-$ENV" >> $GITHUB_OUTPUT
-          echo "Deploying to: $ENV"
+          echo "should_deploy=true" >> $GITHUB_OUTPUT
 
-  # Run all tests before deploying
+          echo "### Deployment Configuration" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Setting | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Environment | $ENV |" >> $GITHUB_STEP_SUMMARY
+          echo "| Stack | code-remote-$ENV |" >> $GITHUB_STEP_SUMMARY
+          echo "| Trigger | ${{ github.event_name }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Ref | ${{ github.ref }} |" >> $GITHUB_STEP_SUMMARY
+
+  # ============================================================
+  # Test: Run all tests before deployment
+  # ============================================================
   test:
-    name: Pre-deploy Tests
+    name: Test
     runs-on: ubuntu-latest
     needs: setup
     steps:
@@ -65,7 +86,7 @@ jobs:
           uv venv .venv
           source .venv/bin/activate
           uv pip install -e ".[dev]"
-          pytest tests/unit/ -v
+          pytest tests/unit/ -v --tb=short
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -79,21 +100,27 @@ jobs:
         run: |
           npm ci
           npm run lint
-          npm run test
+          npm run type-check
+          npm run test -- --run
 
-  # Deploy infrastructure with Pulumi
+  # ============================================================
+  # Infrastructure: Deploy with Pulumi
+  # ============================================================
   infrastructure:
     name: Deploy Infrastructure
     runs-on: ubuntu-latest
     needs: [setup, test]
     environment: ${{ needs.setup.outputs.environment }}
     outputs:
-      ecr_repository_url: ${{ steps.outputs.outputs.ecr_repository_url }}
-      eks_cluster_name: ${{ steps.outputs.outputs.eks_cluster_name }}
+      api_ecr_url: ${{ steps.outputs.outputs.api_ecr_url }}
+      executor_ecr_url: ${{ steps.outputs.outputs.executor_ecr_url }}
+      api_function_name: ${{ steps.outputs.outputs.api_function_name }}
       api_endpoint: ${{ steps.outputs.outputs.api_endpoint }}
-      frontend_bucket_name: ${{ steps.outputs.outputs.frontend_bucket_name }}
+      frontend_bucket: ${{ steps.outputs.outputs.frontend_bucket }}
       frontend_distribution_id: ${{ steps.outputs.outputs.frontend_distribution_id }}
       frontend_url: ${{ steps.outputs.outputs.frontend_url }}
+      cognito_user_pool_id: ${{ steps.outputs.outputs.cognito_user_pool_id }}
+      cognito_client_id: ${{ steps.outputs.outputs.cognito_client_id }}
     steps:
       - uses: actions/checkout@v4
 
@@ -108,47 +135,67 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: infra/pulumi/requirements.txt
 
-      - name: Install Pulumi
+      - name: Install Pulumi CLI
         uses: pulumi/actions@v5
 
-      - name: Install dependencies
+      - name: Install Pulumi dependencies
         working-directory: infra/pulumi
         run: pip install -r requirements.txt
 
-      - name: Select Pulumi stack
-        working-directory: infra/pulumi
-        run: |
-          pulumi stack select ${{ needs.setup.outputs.stack }} --create
+      - name: Pulumi Login
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+        run: pulumi login
 
-      - name: Pulumi preview
+      - name: Select/Create Pulumi stack
         working-directory: infra/pulumi
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+        run: |
+          pulumi stack select ${{ needs.setup.outputs.stack }} 2>/dev/null || \
+          pulumi stack init ${{ needs.setup.outputs.stack }}
+
+      - name: Pulumi Preview
+        working-directory: infra/pulumi
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
         run: pulumi preview --stack ${{ needs.setup.outputs.stack }}
 
-      - name: Pulumi up
+      - name: Pulumi Deploy
         working-directory: infra/pulumi
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
         run: pulumi up --yes --stack ${{ needs.setup.outputs.stack }}
 
       - name: Get Pulumi outputs
         id: outputs
         working-directory: infra/pulumi
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
         run: |
-          echo "ecr_repository_url=$(pulumi stack output ecr_api_repository_url --stack ${{ needs.setup.outputs.stack }})" >> $GITHUB_OUTPUT
-          echo "eks_cluster_name=$(pulumi stack output eks_cluster_name --stack ${{ needs.setup.outputs.stack }})" >> $GITHUB_OUTPUT
-          echo "api_endpoint=$(pulumi stack output api_endpoint --stack ${{ needs.setup.outputs.stack }} 2>/dev/null || echo '')" >> $GITHUB_OUTPUT
-          echo "frontend_bucket_name=$(pulumi stack output frontend_bucket_name --stack ${{ needs.setup.outputs.stack }})" >> $GITHUB_OUTPUT
-          echo "frontend_distribution_id=$(pulumi stack output frontend_distribution_id --stack ${{ needs.setup.outputs.stack }})" >> $GITHUB_OUTPUT
-          echo "frontend_url=$(pulumi stack output frontend_url --stack ${{ needs.setup.outputs.stack }})" >> $GITHUB_OUTPUT
+          echo "api_ecr_url=$(pulumi stack output ecr_api_repository_url)" >> $GITHUB_OUTPUT
+          echo "executor_ecr_url=$(pulumi stack output ecr_executor_repository_url)" >> $GITHUB_OUTPUT
+          echo "api_function_name=$(pulumi stack output api_function_name)" >> $GITHUB_OUTPUT
+          echo "api_endpoint=$(pulumi stack output api_endpoint)" >> $GITHUB_OUTPUT
+          echo "frontend_bucket=$(pulumi stack output frontend_bucket_name)" >> $GITHUB_OUTPUT
+          echo "frontend_distribution_id=$(pulumi stack output frontend_distribution_id)" >> $GITHUB_OUTPUT
+          echo "frontend_url=$(pulumi stack output frontend_url)" >> $GITHUB_OUTPUT
+          echo "cognito_user_pool_id=$(pulumi stack output cognito_user_pool_id)" >> $GITHUB_OUTPUT
+          echo "cognito_client_id=$(pulumi stack output cognito_user_pool_client_id)" >> $GITHUB_OUTPUT
 
-  # Build and push container images
-  build-images:
-    name: Build & Push Images
+  # ============================================================
+  # Build: Build and push Docker images
+  # ============================================================
+  build-api:
+    name: Build API Image
     runs-on: ubuntu-latest
     needs: [setup, infrastructure]
     environment: ${{ needs.setup.outputs.environment }}
     outputs:
-      api_image: ${{ steps.tags.outputs.api_image }}
-      executor_image: ${{ steps.tags.outputs.executor_image }}
+      image_uri: ${{ steps.build.outputs.image_uri }}
     steps:
       - uses: actions/checkout@v4
 
@@ -160,51 +207,39 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR
-        id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Set image tags
-        id: tags
-        run: |
-          ECR_URL="${{ needs.infrastructure.outputs.ecr_repository_url }}"
-          SHORT_SHA="${{ github.sha }}"
-          SHORT_SHA="${SHORT_SHA:0:7}"
-          echo "api_image=${ECR_URL}/api:${SHORT_SHA}" >> $GITHUB_OUTPUT
-          echo "executor_image=${ECR_URL}/executor:${SHORT_SHA}" >> $GITHUB_OUTPUT
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
       - name: Build and push API image
-        uses: docker/build-push-action@v5
-        with:
-          context: ./backend
-          target: production
-          push: true
-          tags: |
-            ${{ steps.tags.outputs.api_image }}
-            ${{ needs.infrastructure.outputs.ecr_repository_url }}/api:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+        id: build
+        env:
+          ECR_URL: ${{ needs.infrastructure.outputs.api_ecr_url }}
+          SHA: ${{ github.sha }}
+        run: |
+          SHORT_SHA="${SHA:0:7}"
+          IMAGE_URI="${ECR_URL}:${SHORT_SHA}"
 
-      - name: Build and push Executor image
-        uses: docker/build-push-action@v5
-        with:
-          context: ./backend
-          file: ./backend/Dockerfile.executor
-          push: true
-          tags: |
-            ${{ steps.tags.outputs.executor_image }}
-            ${{ needs.infrastructure.outputs.ecr_repository_url }}/executor:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          docker buildx build \
+            --platform linux/amd64 \
+            --provenance=false \
+            --push \
+            -t "${IMAGE_URI}" \
+            -t "${ECR_URL}:latest" \
+            -f backend/Dockerfile.lambda \
+            backend/
 
-  # Deploy to Kubernetes
-  deploy-k8s:
-    name: Deploy to Kubernetes
+          echo "image_uri=${IMAGE_URI}" >> $GITHUB_OUTPUT
+          echo "Built and pushed: ${IMAGE_URI}"
+
+  build-executor:
+    name: Build Executor Image
     runs-on: ubuntu-latest
-    needs: [setup, infrastructure, build-images]
+    needs: [setup, infrastructure]
     environment: ${{ needs.setup.outputs.environment }}
+    outputs:
+      image_uri: ${{ steps.build.outputs.image_uri }}
     steps:
       - uses: actions/checkout@v4
 
@@ -215,52 +250,90 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Update kubeconfig
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push Executor image
+        id: build
+        env:
+          ECR_URL: ${{ needs.infrastructure.outputs.executor_ecr_url }}
+          SHA: ${{ github.sha }}
         run: |
-          aws eks update-kubeconfig \
-            --name ${{ needs.infrastructure.outputs.eks_cluster_name }} \
+          SHORT_SHA="${SHA:0:7}"
+          IMAGE_URI="${ECR_URL}:${SHORT_SHA}"
+
+          docker buildx build \
+            --platform linux/amd64 \
+            --provenance=false \
+            --push \
+            -t "${IMAGE_URI}" \
+            -t "${ECR_URL}:latest" \
+            -f backend/Dockerfile.executor \
+            backend/
+
+          echo "image_uri=${IMAGE_URI}" >> $GITHUB_OUTPUT
+          echo "Built and pushed: ${IMAGE_URI}"
+
+  # ============================================================
+  # Deploy Backend: Update Lambda function
+  # ============================================================
+  deploy-backend:
+    name: Deploy Backend
+    runs-on: ubuntu-latest
+    needs: [setup, infrastructure, build-api]
+    environment: ${{ needs.setup.outputs.environment }}
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Update Lambda function
+        env:
+          FUNCTION_NAME: ${{ needs.infrastructure.outputs.api_function_name }}
+          IMAGE_URI: ${{ needs.build-api.outputs.image_uri }}
+        run: |
+          echo "Updating Lambda function: $FUNCTION_NAME"
+          echo "With image: $IMAGE_URI"
+
+          aws lambda update-function-code \
+            --function-name "$FUNCTION_NAME" \
+            --image-uri "$IMAGE_URI" \
             --region ${{ env.AWS_REGION }}
 
-      - name: Install kubectl
-        uses: azure/setup-kubectl@v3
-        with:
-          version: 'v1.29.0'
+          # Wait for update to complete
+          echo "Waiting for Lambda update to complete..."
+          aws lambda wait function-updated \
+            --function-name "$FUNCTION_NAME" \
+            --region ${{ env.AWS_REGION }}
 
-      - name: Deploy with Kustomize
-        env:
-          ENVIRONMENT: ${{ needs.setup.outputs.environment }}
-          API_IMAGE: ${{ needs.build-images.outputs.api_image }}
-          EXECUTOR_IMAGE: ${{ needs.build-images.outputs.executor_image }}
-        run: |
-          cd kubernetes/overlays/$ENVIRONMENT
-
-          # Update image references using kustomize edit
-          kustomize edit set image api-placeholder=$API_IMAGE
-          kustomize edit set image executor-placeholder=$EXECUTOR_IMAGE
-
-          # Apply the manifests
-          kubectl apply -k .
-
-          # Wait for rollout
-          kubectl rollout status deployment/api -n code-remote --timeout=300s
-          kubectl rollout status deployment/executor -n code-remote --timeout=300s
+          echo "Lambda function updated successfully"
 
       - name: Verify deployment
+        env:
+          API_ENDPOINT: ${{ needs.infrastructure.outputs.api_endpoint }}
         run: |
-          echo "=== Pod Status ==="
-          kubectl get pods -n code-remote
+          echo "Verifying API health..."
+          for i in {1..5}; do
+            if curl -sf "${API_ENDPOINT}/health"; then
+              echo ""
+              echo "✅ Health check passed!"
+              exit 0
+            fi
+            echo "Attempt $i failed, retrying in 5s..."
+            sleep 5
+          done
+          echo "❌ Health check failed after 5 attempts"
+          exit 1
 
-          echo "=== Services ==="
-          kubectl get svc -n code-remote
-
-          echo "=== API Health Check ==="
-          # Get the API service endpoint
-          kubectl run health-check --rm -i --restart=Never \
-            --image=curlimages/curl:latest \
-            -n code-remote \
-            -- curl -s http://api.code-remote.svc.cluster.local/health || true
-
-  # Deploy frontend to S3 + CloudFront
+  # ============================================================
+  # Deploy Frontend: Build and sync to S3
+  # ============================================================
   deploy-frontend:
     name: Deploy Frontend
     runs-on: ubuntu-latest
@@ -280,13 +353,25 @@ jobs:
         working-directory: frontend
         run: npm ci
 
-      - name: Build frontend
+      - name: Create environment file
         working-directory: frontend
         env:
           VITE_API_URL: ${{ needs.infrastructure.outputs.api_endpoint }}
-          VITE_COGNITO_USER_POOL_ID: ${{ secrets.COGNITO_USER_POOL_ID }}
-          VITE_COGNITO_CLIENT_ID: ${{ secrets.COGNITO_CLIENT_ID }}
+          VITE_COGNITO_USER_POOL_ID: ${{ needs.infrastructure.outputs.cognito_user_pool_id }}
+          VITE_COGNITO_CLIENT_ID: ${{ needs.infrastructure.outputs.cognito_client_id }}
           VITE_COGNITO_REGION: ${{ env.AWS_REGION }}
+        run: |
+          cat > .env.production << EOF
+          VITE_API_URL=${VITE_API_URL}
+          VITE_COGNITO_USER_POOL_ID=${VITE_COGNITO_USER_POOL_ID}
+          VITE_COGNITO_CLIENT_ID=${VITE_COGNITO_CLIENT_ID}
+          VITE_COGNITO_REGION=${VITE_COGNITO_REGION}
+          EOF
+          echo "Created .env.production:"
+          cat .env.production
+
+      - name: Build frontend
+        working-directory: frontend
         run: npm run build
 
       - name: Configure AWS credentials
@@ -298,89 +383,137 @@ jobs:
 
       - name: Deploy to S3
         working-directory: frontend
+        env:
+          S3_BUCKET: ${{ needs.infrastructure.outputs.frontend_bucket }}
         run: |
-          aws s3 sync dist/ s3://${{ needs.infrastructure.outputs.frontend_bucket_name }}/ \
+          # Sync static assets with long cache
+          aws s3 sync dist/ "s3://${S3_BUCKET}/" \
             --delete \
             --cache-control "public, max-age=31536000, immutable" \
             --exclude "index.html" \
             --exclude "*.json"
 
-          # Upload index.html and JSON with shorter cache
-          aws s3 cp dist/index.html s3://${{ needs.infrastructure.outputs.frontend_bucket_name }}/index.html \
+          # Upload index.html with no-cache (always check for updates)
+          aws s3 cp dist/index.html "s3://${S3_BUCKET}/index.html" \
             --cache-control "public, max-age=0, must-revalidate"
 
-          # Upload any JSON config files with no cache
-          find dist -name "*.json" -exec aws s3 cp {} s3://${{ needs.infrastructure.outputs.frontend_bucket_name }}/$(basename {}) \
-            --cache-control "public, max-age=0, must-revalidate" \; 2>/dev/null || true
-
-      - name: Invalidate CloudFront cache
+      - name: Invalidate CloudFront
+        env:
+          DISTRIBUTION_ID: ${{ needs.infrastructure.outputs.frontend_distribution_id }}
         run: |
-          aws cloudfront create-invalidation \
-            --distribution-id ${{ needs.infrastructure.outputs.frontend_distribution_id }} \
-            --paths "/index.html" "/*.json"
+          INVALIDATION_ID=$(aws cloudfront create-invalidation \
+            --distribution-id "$DISTRIBUTION_ID" \
+            --paths "/*" \
+            --query 'Invalidation.Id' \
+            --output text)
 
-      - name: Output frontend URL
-        run: |
-          echo "## Frontend Deployed" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**URL:** ${{ needs.infrastructure.outputs.frontend_url }}" >> $GITHUB_STEP_SUMMARY
+          echo "CloudFront invalidation created: $INVALIDATION_ID"
+          echo "Frontend URL: ${{ needs.infrastructure.outputs.frontend_url }}"
 
-  # Run smoke tests after deployment
+  # ============================================================
+  # Smoke Tests: Verify deployment
+  # ============================================================
   smoke-tests:
     name: Smoke Tests
     runs-on: ubuntu-latest
-    needs: [setup, infrastructure, deploy-k8s, deploy-frontend]
+    needs: [setup, infrastructure, deploy-backend, deploy-frontend]
     environment: ${{ needs.setup.outputs.environment }}
-    if: needs.setup.outputs.environment != 'prod'
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
-        with:
-          version: "latest"
+      - name: Wait for CloudFront propagation
+        run: sleep 30
 
-      - name: Set up Python
-        run: uv python install 3.11
-
-      - name: Run smoke tests
-        working-directory: backend
+      - name: Test API endpoints
         env:
           API_ENDPOINT: ${{ needs.infrastructure.outputs.api_endpoint }}
-          ENVIRONMENT: ${{ needs.setup.outputs.environment }}
         run: |
-          uv venv .venv
-          source .venv/bin/activate
-          uv pip install -e ".[dev]"
+          echo "Testing API endpoints at: $API_ENDPOINT"
 
-          # Run smoke tests if endpoint is available
-          if [ -n "$API_ENDPOINT" ]; then
-            pytest tests/smoke/ -v --api-url="$API_ENDPOINT" || echo "Smoke tests skipped - endpoint not accessible"
+          # Test health endpoint
+          echo "=== Testing /health ==="
+          curl -sf "${API_ENDPOINT}/health" | jq .
+
+          # Test that protected endpoints require auth
+          echo ""
+          echo "=== Testing /execute requires auth ==="
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X POST "${API_ENDPOINT}/execute" \
+            -H "Content-Type: application/json" \
+            -d '{"code": "print(1)"}')
+
+          if [ "$STATUS" = "401" ]; then
+            echo "✅ Auth correctly required (401)"
           else
-            echo "Skipping smoke tests - no API endpoint available"
+            echo "❌ Expected 401, got $STATUS"
+            exit 1
           fi
 
-  # Notify on completion
-  notify:
-    name: Notify
+      - name: Test frontend
+        env:
+          FRONTEND_URL: ${{ needs.infrastructure.outputs.frontend_url }}
+        run: |
+          echo "Testing frontend at: $FRONTEND_URL"
+
+          # Check that frontend loads
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$FRONTEND_URL")
+
+          if [ "$STATUS" = "200" ]; then
+            echo "✅ Frontend loads successfully"
+          else
+            echo "❌ Frontend returned $STATUS"
+            exit 1
+          fi
+
+  # ============================================================
+  # Summary: Final deployment report
+  # ============================================================
+  summary:
+    name: Deployment Summary
     runs-on: ubuntu-latest
-    needs: [setup, infrastructure, deploy-k8s, deploy-frontend, smoke-tests]
+    needs: [setup, infrastructure, deploy-backend, deploy-frontend, smoke-tests]
     if: always()
     steps:
-      - name: Deployment Summary
+      - name: Generate summary
+        env:
+          ENV: ${{ needs.setup.outputs.environment }}
+          API_URL: ${{ needs.infrastructure.outputs.api_endpoint }}
+          FRONTEND_URL: ${{ needs.infrastructure.outputs.frontend_url }}
+          BACKEND_RESULT: ${{ needs.deploy-backend.result }}
+          FRONTEND_RESULT: ${{ needs.deploy-frontend.result }}
+          SMOKE_RESULT: ${{ needs.smoke-tests.result }}
         run: |
-          echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "## 🚀 Deployment Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Environment:** ${{ needs.setup.outputs.environment }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Triggered by:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Environment | **$ENV** |" >> $GITHUB_STEP_SUMMARY
+          echo "| Commit | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Triggered by | ${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Ref | ${{ github.ref }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Frontend URL:** ${{ needs.infrastructure.outputs.frontend_url }}" >> $GITHUB_STEP_SUMMARY
+          echo "### 🌐 Endpoints" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Frontend:** $FRONTEND_URL" >> $GITHUB_STEP_SUMMARY
+          echo "- **API:** $API_URL" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📊 Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
-          if [ "${{ needs.deploy-k8s.result }}" = "success" ] && [ "${{ needs.deploy-frontend.result }}" = "success" ]; then
-            echo "✅ Deployment successful!" >> $GITHUB_STEP_SUMMARY
+          if [ "$BACKEND_RESULT" = "success" ]; then
+            echo "- ✅ Backend deployment: Success" >> $GITHUB_STEP_SUMMARY
           else
-            echo "❌ Deployment failed!" >> $GITHUB_STEP_SUMMARY
+            echo "- ❌ Backend deployment: $BACKEND_RESULT" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ "$FRONTEND_RESULT" = "success" ]; then
+            echo "- ✅ Frontend deployment: Success" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- ❌ Frontend deployment: $FRONTEND_RESULT" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ "$SMOKE_RESULT" = "success" ]; then
+            echo "- ✅ Smoke tests: Passed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- ⚠️ Smoke tests: $SMOKE_RESULT" >> $GITHUB_STEP_SUMMARY
           fi

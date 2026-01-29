@@ -3,9 +3,6 @@
 import os
 from unittest.mock import patch
 
-import pytest
-from pydantic import ValidationError
-
 from common.config import Settings, get_settings
 
 
@@ -42,13 +39,14 @@ def test_settings_loads_from_env_vars():
         assert settings.gemini_api_key == "test-key"
 
 
-def test_settings_requires_all_fields():
-    """Test that missing required fields raise ValidationError."""
+def test_settings_has_sensible_defaults():
+    """Test that settings work with defaults when env vars are empty."""
     with patch.dict(os.environ, {}, clear=True):
-        with pytest.raises(ValidationError) as exc_info:
-            Settings(_env_file=None)
-        # Should have multiple missing fields
-        assert len(exc_info.value.errors()) > 0
+        # Settings should work with defaults (no ValidationError)
+        settings = Settings(_env_file=None)
+        assert settings.app_name == "Code Remote"
+        assert settings.environment == "development"
+        assert settings.execution_timeout_seconds == 30
 
 
 def test_settings_cors_origins_parses_json():

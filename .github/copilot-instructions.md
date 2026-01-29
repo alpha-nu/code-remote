@@ -127,107 +127,70 @@ export PULUMI_CONFIG_PASSPHRASE="your-passphrase"
 ```bash
 # Step 1: Initialize infrastructure stack
 cd infra/pulumi
-pulumi stack init dev  # or: staging, prod
+pulumi stack init dev  # or: prod
 
 # Step 2: Configure stack
 pulumi config set aws:region us-east-1
-pulumi config set --secret geminiApiKey "your-gemini-key"
-pulumi config set --secret cognitoClientSecret "your-cognito-secret"
 
 # Step 3: Preview changes
 pulumi preview --stack dev
 
-# Step 4: Deploy AWS infrastructure (VPC, RDS, SQS, Cognito, ECR)
+# Step 4: Deploy AWS infrastructure (VPC, Cognito, ECR, Lambda, S3, CloudFront)
 pulumi up --stack dev --yes
 
 # Step 5: Build and push container images
-export ECR_REPO=$(pulumi stack output ecrRepositoryUrl)
-docker build -t $ECR_REPO/api:latest ./backend
-docker build -t $ECR_REPO/executor:latest ./backend/executor
-aws ecr get-login-password | docker login --username AWS --password-stdin $ECR_REPO
-docker push $ECR_REPO/api:latest
-docker push $ECR_REPO/executor:latest
+export API_ECR=$(pulumi stack output ecr_api_repository_url)
+docker buildx build --platform linux/amd64 --provenance=false -t $API_ECR:latest -f backend/Dockerfile.lambda backend/
+aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin $API_ECR
+docker push $API_ECR:latest
 
-# Step 6: Deploy Kubernetes execution cluster
-aws eks update-kubeconfig --name $(pulumi stack output eksClusterName)
-kubectl apply -k kubernetes/overlays/dev/
+# Step 6: Update Lambda function
+aws lambda update-function-code \
+  --function-name $(pulumi stack output api_function_name) \
+  --image-uri $API_ECR:latest
 
 # Step 7: Verify deployment
-kubectl get pods -n code-remote
-curl $(pulumi stack output apiEndpoint)/health
+curl $(pulumi stack output api_endpoint)/health
 ```
 
 ### Automated Deployment (GitHub Actions)
 
-**Trigger:** Push to `release/dev`, `release/staging`, or `release/prod` branches
+The project uses a fully automated CI/CD pipeline with GitHub Actions.
 
-```yaml
-# .github/workflows/deploy.yml
-name: Deploy Infrastructure
+**Architecture:** Lambda + API Gateway + S3/CloudFront (Serverless)
 
-on:
-  push:
-    branches:
-      - 'release/dev'
-      - 'release/staging'
-      - 'release/prod'
+**Triggers:**
+- `main` branch push → Deploy to **dev**
+- Version tag (`v*`) → Deploy to **prod**
+- Manual workflow dispatch → Choose environment
 
-env:
-  PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
-  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+**Pipeline Stages:**
+1. **Setup** - Determine environment (dev/prod) from trigger
+2. **Test** - Run backend + frontend tests
+3. **Infrastructure** - Deploy/update with Pulumi
+4. **Build** - Build and push Docker images to ECR
+5. **Deploy Backend** - Update Lambda function
+6. **Deploy Frontend** - Sync to S3, invalidate CloudFront
+7. **Smoke Tests** - Verify health endpoints
+8. **Summary** - Generate deployment report
 
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Determine environment
-        id: env
-        run: echo "stack=${GITHUB_REF#refs/heads/release/}" >> $GITHUB_OUTPUT
-      
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      
-      - name: Install Pulumi
-        uses: pulumi/actions@v5
-      
-      - name: Deploy Infrastructure
-        working-directory: infra/pulumi
-        run: |
-          pip install -r requirements.txt
-          pulumi stack select ${{ steps.env.outputs.stack }}
-          pulumi up --yes
-      
-      - name: Build & Push Images
-        run: |
-          ECR_REPO=$(cd infra/pulumi && pulumi stack output ecrRepositoryUrl)
-          aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin $ECR_REPO
-          docker build -t $ECR_REPO/api:${{ github.sha }} ./backend
-          docker build -t $ECR_REPO/executor:${{ github.sha }} ./backend/executor
-          docker push $ECR_REPO/api:${{ github.sha }}
-          docker push $ECR_REPO/executor:${{ github.sha }}
-      
-      - name: Deploy to Kubernetes
-        run: |
-          aws eks update-kubeconfig --name $(cd infra/pulumi && pulumi stack output eksClusterName)
-          kubectl set image deployment/api api=$ECR_REPO/api:${{ github.sha }} -n code-remote
-          kubectl set image deployment/executor executor=$ECR_REPO/executor:${{ github.sha }} -n code-remote
-          kubectl rollout status deployment/api -n code-remote
-```
-
-### Release Branch Workflow
+### Release Workflow
 
 ```bash
-# Deploy to dev
-git checkout -b release/dev
-git push origin release/dev
+# Deploy to dev (automatic on merge to main)
+git checkout main
+git merge feature/my-feature
+git push origin main
+# → Triggers: Deploy to dev environment
 
-# Promote to staging (after dev verification)
-git checkout release/staging
-git merge release/dev
+# Deploy to prod (create a version tag)
+git tag v1.0.0
+git push origin v1.0.0
+# → Triggers: Deploy to prod environment
+
+# Manual deployment (via GitHub UI)
+# Go to Actions → Deploy → Run workflow → Select environment
+```
 git push origin release/staging
 
 # Promote to prod (after staging verification)
@@ -245,6 +208,15 @@ git push origin release/prod
 | `PULUMI_ACCESS_TOKEN` | Pulumi Cloud token (or use `PULUMI_CONFIG_PASSPHRASE` for local backend) |
 | `GEMINI_API_KEY` | Google Gemini API key |
 
+### Required GitHub Secrets
+
+| Secret | Description |
+|--------|-------------|
+| `AWS_ACCESS_KEY_ID` | AWS IAM access key with deployment permissions |
+| `AWS_SECRET_ACCESS_KEY` | AWS IAM secret key |
+| `PULUMI_ACCESS_TOKEN` | Pulumi Cloud token (or use `PULUMI_CONFIG_PASSPHRASE` for local backend) |
+| `GEMINI_API_KEY` | Google Gemini API key (stored in AWS Secrets Manager, injected at deploy time) |
+
 ### Stack Outputs Reference
 
 ```bash
@@ -252,11 +224,13 @@ git push origin release/prod
 pulumi stack output
 
 # Key outputs:
-# - apiEndpoint: https://api.coderemote.dev
-# - ecrRepositoryUrl: 123456789.dkr.ecr.us-east-1.amazonaws.com/code-remote
-# - eksClusterName: dev-code-remote-eks
-# - rdsEndpoint: dev-db.xxxxx.us-east-1.rds.amazonaws.com
-# - cognitoUserPoolId: us-east-1_XXXXXX
+# - api_endpoint: https://xxxx.execute-api.us-east-1.amazonaws.com
+# - api_function_name: code-remote-dev-api-func-xxxxx
+# - ecr_api_repository_url: 123456789.dkr.ecr.us-east-1.amazonaws.com/code-remote-xxx-api
+# - frontend_url: https://dxxxxxx.cloudfront.net
+# - frontend_bucket_name: code-remote-xxx-frontend-xxx
+# - cognito_user_pool_id: us-east-1_XXXXXX
+# - cognito_user_pool_client_id: xxxxxxxxxxxxxxxxx
 ```
 
 ---
@@ -307,7 +281,7 @@ GEMINI_API_KEY=your-api-key-here
 
 - Hardcode AWS-specific services in business logic (use abstractions)
 - Store secrets in code or Pulumi config (use AWS Secrets Manager)
-- Allow arbitrary imports in executor (whitelist only: `math`, `json`, `collections`, `itertools`, `functools`, `typing`, `dataclasses`)
+- Allow arbitrary imports in executor (whitelist only: `math`, `json`, `collections`, `itertools`, `functools`, `typing`, `dataclasses`, `random`, `string`, `re`, `datetime`, `decimal`, `fractions`, `statistics`, `operator`, `copy`, `heapq`, `bisect`, `array`, `enum`)
 - Skip input validation on code submissions (max 10KB, UTF-8 only)
 - Run executor containers with network access in production
 

@@ -55,6 +55,10 @@ interface EditorState {
   timeoutSeconds: number;
   setTimeoutSeconds: (timeout: number) => void;
 
+  // Track whether code has been executed at least once
+  hasRun: boolean;
+  setHasRun: (hasRun: boolean) => void;
+
   // Reset
   reset: () => void;
 }
@@ -72,7 +76,11 @@ export const useEditorStore = create<EditorState>((set) => ({
   setIsExecuting: (isExecuting) => set({ isExecuting }),
 
   result: null,
-  setResult: (result) => set({ result }),
+  setResult: (result) => set({
+    result,
+    // mark that code has been executed at least once when a non-null result is set
+    ...(result ? { hasRun: true } : {}),
+  }),
 
   isAnalyzing: false,
   setIsAnalyzing: (isAnalyzing) => set({ isAnalyzing }),
@@ -82,6 +90,10 @@ export const useEditorStore = create<EditorState>((set) => ({
 
   lastAnalyzedCode: null,
   setLastAnalyzedCode: (code) => set({ lastAnalyzedCode: code }),
+
+  // Track whether code has been executed at least once
+  hasRun: false,
+  setHasRun: (hasRun: boolean) => set({ hasRun }),
 
   analyze: async () => {
     const { analyzeCode } = await import('../api/client');

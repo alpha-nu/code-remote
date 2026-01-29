@@ -312,10 +312,18 @@ input[type="checkbox"] {
 .output-tools {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 12px;
   padding: 8px 12px;
   border-bottom: 1px solid var(--border-color);
   background-color: var(--bg-tertiary);
+}
+
+.output-tools-left,
+.output-tools-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .output-header {

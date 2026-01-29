@@ -17,6 +17,7 @@ export function OutputPanel() {
     setAutoAnalyze,
     timeoutSeconds,
     setTimeoutSeconds,
+    hasRun,
   } = useEditorStore();
   // Always render the panel header and the tools area, then render content
   return (
@@ -38,28 +39,49 @@ export function OutputPanel() {
       </div>
 
       <div className="output-tools">
-        <label className="auto-analyze-label">
-          <input
-            type="checkbox"
-            checked={autoAnalyze}
-            onChange={(e) => setAutoAnalyze(e.target.checked)}
-            disabled={isExecuting}
-          />
-          Auto-analyze
-        </label>
+        <div className="output-tools-left">
+          <label className="auto-analyze-label">
+            <input
+              type="checkbox"
+              checked={autoAnalyze}
+              onChange={(e) => setAutoAnalyze(e.target.checked)}
+              disabled={isExecuting}
+            />
+            Auto-analyze
+          </label>
 
-        <label className="timeout-label">
-          Timeout:
-          <select
-            value={timeoutSeconds}
-            onChange={(e) => setTimeoutSeconds(Number(e.target.value))}
-            disabled={isExecuting}
-          >
-            <option value={5}>5s</option>
-            <option value={10}>10s</option>
-            <option value={30}>30s</option>
-          </select>
-        </label>
+          <label className="timeout-label">
+            Timeout:
+            <select
+              value={timeoutSeconds}
+              onChange={(e) => setTimeoutSeconds(Number(e.target.value))}
+              disabled={isExecuting}
+            >
+              <option value={5}>5s</option>
+              <option value={10}>10s</option>
+              <option value={30}>30s</option>
+            </select>
+          </label>
+        </div>
+
+        <div className="output-tools-right">
+          {/* Show explicit analyze button only after code has been executed once and when autoAnalyze is off */}
+          {!autoAnalyze && hasRun && (
+            <button className="analyze-button" onClick={() => analyze()} disabled={isAnalyzing}>
+              {isAnalyzing ? (
+                'Analyzing...'
+              ) : (
+                <>
+                  <svg className="btn-icon small" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <circle cx="11" cy="11" r="6" />
+                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                  </svg>
+                  <span>Analyze Code</span>
+                </>
+              )}
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="output-content">
@@ -135,24 +157,7 @@ export function OutputPanel() {
             {/* Complexity Analysis */}
             <ComplexityPanel />
 
-            {/* If auto-analyze is disabled, show explicit analyze button after execution */}
-            {!autoAnalyze && (
-              <div className="analyze-action">
-                <button className="analyze-button" onClick={() => analyze()} disabled={isAnalyzing}>
-                  {isAnalyzing ? (
-                    'Analyzing...'
-                  ) : (
-                    <>
-                      <svg className="btn-icon small" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                        <circle cx="11" cy="11" r="6" />
-                        <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                      </svg>
-                      <span>Analyze Code</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            )}
+            {/* analyze button moved to top tools area */}
           </>
         )}
       </div>

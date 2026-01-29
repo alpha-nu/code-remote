@@ -76,6 +76,98 @@ This document tracks deferred technical decisions and potential improvements.
 
 ---
 
+## Auth Backend Proxy (Remove AWS Amplify)
+
+**Status:** Planned  
+**Date Added:** January 29, 2026
+
+**Current State:**
+- Frontend uses `@aws-amplify/auth` to communicate directly with Cognito
+- Cognito User Pool ID and Client ID exposed to frontend
+- AWS-specific implementation leaked to client
+
+**Proposed Change:**
+Create `/auth/*` routes in the backend to proxy Cognito, removing direct frontend-to-Cognito communication.
+
+**New Routes:**
+```
+POST /auth/login        → Sign in, return tokens
+POST /auth/register     → Create account
+POST /auth/confirm      → Verify email code
+POST /auth/refresh      → Refresh tokens
+POST /auth/logout       → Invalidate session
+GET  /auth/me           → Get current user info
+```
+
+**Benefits:**
+- No AWS SDK in frontend (smaller bundle, ~50KB savings)
+- Hide Cognito implementation details from client
+- Easier to swap auth providers later (Auth0, Firebase, custom)
+- Can add custom logic (rate limiting, audit logging, brute-force protection)
+- Single API domain (eliminates CORS to Cognito)
+
+**Drawbacks:**
+- Extra network hop for auth requests
+- Backend manages token refresh logic
+- More backend code to maintain
+
+**Implementation Steps:**
+1. Create `backend/api/routers/auth.py` with login/register/confirm/refresh endpoints
+2. Create `backend/api/services/auth_service.py` to wrap Cognito boto3 calls
+3. Update frontend to call `/auth/*` instead of using Amplify
+4. Remove `@aws-amplify/auth` and `aws-amplify` dependencies from frontend
+5. Simplify frontend auth store to just manage tokens from API responses
+
+---
+
+## Lambda Architecture (Single vs Multiple)
+
+**Status:** Deferred  
+**Date Added:** January 29, 2026
+
+**Current State:**
+All routes (`/health`, `/execute`, `/analyze`) are served by a single Lambda running FastAPI via Mangum adapter.
+
+**Options Considered:**
+
+### Option A: Single Lambda (Current ✅)
+```
+API Gateway → Single Lambda (FastAPI)
+              ├── /health
+              ├── /execute
+              └── /analyze
+```
+- ✅ Simpler deployment and local development
+- ✅ Shared code/dependencies
+- ❌ Can't scale routes independently
+- ❌ Cold starts affect all routes
+
+### Option B: Lambda per Route
+```
+API Gateway → /health  → health-func
+            → /execute → execute-func
+            → /analyze → analyze-func
+```
+- ✅ Independent scaling and timeouts
+- ✅ Isolate failures
+- ❌ More deployment complexity
+- ❌ Code duplication
+
+### Option C: Lambda per Domain (Future consideration)
+```
+API Gateway → /auth/*   → auth-func
+            → /execute  → exec-func
+            → /*        → api-func (health, analyze, etc.)
+```
+Groups by responsibility:
+- **auth-func**: Auth routes (lightweight, no sandbox needed)
+- **exec-func**: Code execution (isolated, strict timeout/memory)
+- **api-func**: Everything else
+
+**Decision:** Stay with single Lambda for now. The current architecture is appropriate for our scale. Split when there's a concrete need (e.g., execute needs different timeout than analyze, or specific routes need independent scaling).
+
+---
+
 ## Add More Frontend Tests
 
 **Status:** Planned  

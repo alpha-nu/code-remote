@@ -46,7 +46,7 @@ export function UserMenu() {
         <span className="user-avatar">
           {user.email?.[0]?.toUpperCase() || user.username?.[0]?.toUpperCase() || '?'}
         </span>
-        <span className="user-name">{user.email || user.username}</span>
+        {/* Username/email shown inside dropdown header only; keep button compact */}
         <span className="dropdown-arrow">▼</span>
       </button>
 

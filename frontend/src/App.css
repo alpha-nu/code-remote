@@ -194,9 +194,11 @@ input[type="checkbox"] {
 
 .theme-toggle {
   margin-left: 12px;
-  /* match `.user-button` sizing exactly */
-  padding: 0.35rem 0.65rem;
-  border-radius: 4px;
+  /* make circular to match avatar button */
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: 9999px;
   background: var(--bg-tertiary);
   color: var(--text-secondary);
   border: 1px solid var(--border-color);
@@ -204,14 +206,11 @@ input[type="checkbox"] {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  /* ensure height matches avatar + vertical padding: 1.75rem + 0.7rem = 2.45rem */
-  min-height: calc(1.75rem + 0.7rem);
-  height: auto;
 }
 
 .theme-toggle-icon {
-  width: 18px;
-  height: 18px;
+  width: 22px;
+  height: 22px;
   display: inline-block;
   transition: transform 260ms cubic-bezier(.2,.9,.2,1), filter 180ms ease, opacity 160ms ease;
   will-change: transform, opacity;
@@ -227,6 +226,16 @@ input[type="checkbox"] {
 /* animate icon when theme changes (subtle rotate + scale) */
 .theme-toggle-icon.animate {
   transform: rotate(20deg) scale(1.04);
+}
+
+/* hover / focus for theme toggle to match avatar button behavior */
+.theme-toggle:hover {
+  transform: translateY(-1px);
+}
+.theme-toggle:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(31, 140, 255, 0.12);
+  border-radius: 9999px;
 }
 
 .btn-icon {

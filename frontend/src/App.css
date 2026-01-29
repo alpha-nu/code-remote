@@ -329,9 +329,24 @@ input[type="checkbox"] {
 .output-header {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   padding: 8px 12px;
   background-color: var(--bg-tertiary);
+
+.output-time-pill {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 3px;
+  margin-right: 8px;
+}
+.output-time-pill.success {
+  color: var(--success-color);
+  background-color: rgba(76, 175, 80, 0.15);
+}
+.output-time-pill.error {
+  color: var(--error-color);
+  background-color: rgba(244, 67, 54, 0.15);
+}
   border-bottom: 1px solid var(--border-color);
 }
 

@@ -26,6 +26,13 @@ export function OutputPanel() {
         <span className="output-title">Output</span>
         {result ? (
           <>
+            {/* Execution time pill (prominent) - styled like status pills; color reflects success/error */}
+            <span
+              className={`output-time-pill ${result.success ? 'success' : 'error'}`}
+              aria-label={`Execution time ${result.execution_time_ms.toFixed(2)} milliseconds`}
+            >
+              {result.execution_time_ms.toFixed(2)} ms
+            </span>
             <span className={`output-status ${result.success ? 'success' : 'error'}`}>
               {result.success ? '✓ Success' : '✗ Error'}
             </span>

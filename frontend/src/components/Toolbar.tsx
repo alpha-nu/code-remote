@@ -89,8 +89,12 @@ export function Toolbar() {
   return (
     <div className="toolbar">
       <div className="toolbar-left">
-        <h1 className="app-title">Code Remote</h1>
-        <span className="app-subtitle">Python Sandbox</span>
+        <div className="app-logo">
+          <span className="code-keyword">def</span>
+          <span className="code-function">__code_remote__</span>
+          <span className="code-punctuation">():</span>
+        </div>
+        <span className="keyboard-hint">Python Sandbox</span>
       </div>
 
       <div className="toolbar-center">

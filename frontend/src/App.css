@@ -15,6 +15,8 @@
   --success-color: #18a058;
   --action-color: #0b8043; /* primary action (dark theme) - Palette 3 */
   --action-foreground: var(--text-primary);
+  --pre-bg: rgba(11,14,16,0.95);
+  --pre-border: rgba(255,255,255,0.03);
 }
 
 /* Light theme overrides */
@@ -33,6 +35,8 @@
   --error-color: #d32f2f;
   --action-color: #16b96a; /* slightly brighter action green for light theme */
   --action-foreground: #0b1220; /* accessible dark foreground for better contrast */
+  --pre-bg: #ffffff;
+  --pre-border: rgba(10,14,20,0.06);
 }
 
 * {
@@ -82,15 +86,47 @@ body {
   gap: 8px;
 }
 
-.app-title {
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--accent-blue);
+.app-logo {
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace;
+  font-size: 16px;
+  font-weight: 500;
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  line-height: 1;
 }
 
-.app-subtitle {
-  font-size: 12px;
-  color: var(--text-secondary);
+.code-keyword {
+  color: #c678dd; /* purple for keyword */
+}
+
+.code-function {
+  color: #61afef; /* blue for function name */
+}
+
+.code-punctuation {
+  color: #abb2bf; /* gray for punctuation */
+}
+
+.code-placeholder {
+  color: #e5c07b; /* yellow for placeholder */
+}
+
+/* Light theme overrides for syntax highlighting */
+.light-theme .code-keyword {
+  color: #a626a4;
+}
+
+.light-theme .code-function {
+  color: #4078f2;
+}
+
+.light-theme .code-punctuation {
+  color: #383a42;
+}
+
+.light-theme .code-placeholder {
+  color: #c18401;
 }
 
 .toolbar-center {

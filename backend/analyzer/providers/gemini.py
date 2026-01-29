@@ -23,18 +23,32 @@ class GeminiProvider(LLMProvider):
         """Initialize the Gemini provider.
 
         Args:
-            api_key: Gemini API key. If not provided, uses settings.
+            api_key: Gemini API key. If not provided, uses settings lazily.
         """
-        self.api_key = api_key or settings.gemini_api_key
+        self._explicit_api_key = api_key
         self._client: genai.Client | None = None
         self._prompt_template: str | None = None
         self._model = "gemini-3-flash-preview"  # Updated model for new SDK
+        self._initialized = False
+
+    def _ensure_initialized(self) -> None:
+        """Lazily initialize the Gemini client."""
+        if self._initialized:
+            return
+
+        self._initialized = True
+        # Get API key (either explicit or from settings)
+        self.api_key = self._explicit_api_key or settings.resolved_gemini_api_key
 
         if self.api_key:
             self._client = genai.Client(api_key=self.api_key)
+            logger.info("Gemini client initialized successfully")
+        else:
+            logger.warning("Gemini API key not configured")
 
     def is_configured(self) -> bool:
         """Check if Gemini API key is configured."""
+        self._ensure_initialized()
         return bool(self.api_key)
 
     def _load_prompt_template(self) -> str:

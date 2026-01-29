@@ -1,8 +1,14 @@
 """Execution service for running user code."""
 
+import os
+
 from api.schemas.execution import ExecutionResponse, SecurityViolationResponse
 from common.config import settings
-from executor import ExecutionResult, execute_code
+
+
+def is_lambda_environment() -> bool:
+    """Check if we're running in AWS Lambda."""
+    return bool(os.environ.get("AWS_LAMBDA_FUNCTION_NAME"))
 
 
 class ExecutorService:
@@ -23,6 +29,9 @@ class ExecutorService:
     ) -> ExecutionResponse:
         """Execute Python code in a sandboxed environment.
 
+        In Lambda, uses Fargate tasks for execution.
+        Locally, uses subprocess-based execution.
+
         Args:
             code: The Python source code to execute.
             timeout_seconds: Maximum execution time (overrides default).
@@ -40,7 +49,17 @@ class ExecutorService:
                 error_type="ValidationError",
             )
 
-        # Execute the code (this runs in a subprocess)
+        # In Lambda, use in-process execution with sandboxing
+        # This is faster than Fargate (no cold start) but less isolated
+        if is_lambda_environment():
+            from api.services.lambda_executor import get_lambda_executor
+
+            lambda_executor = get_lambda_executor()
+            return lambda_executor.execute(code, timeout_seconds=timeout)
+
+        # Local development: use subprocess-based execution
+        from executor import ExecutionResult, execute_code
+
         result: ExecutionResult = execute_code(code, timeout_seconds=timeout)
 
         # Convert to response model

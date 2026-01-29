@@ -201,12 +201,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   /**
-   * Get the current access token for API calls.
+   * Get the current ID token for API calls.
+   * We use ID token instead of access token because API Gateway JWT authorizer
+   * validates the "aud" claim which is only present in ID tokens.
    */
   getAccessToken: async (): Promise<string | null> => {
     try {
       const session = await fetchAuthSession();
-      return session.tokens?.accessToken?.toString() ?? null;
+      return session.tokens?.idToken?.toString() ?? null;
     } catch {
       return null;
     }

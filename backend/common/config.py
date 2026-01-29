@@ -5,6 +5,28 @@ from functools import lru_cache
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+def get_secret_from_aws(secret_arn: str) -> str:
+    """Fetch a secret value from AWS Secrets Manager.
+
+    Args:
+        secret_arn: The ARN or name of the secret.
+
+    Returns:
+        The secret value, or empty string if not found.
+    """
+    if not secret_arn:
+        return ""
+
+    try:
+        import boto3
+
+        client = boto3.client("secretsmanager")
+        response = client.get_secret_value(SecretId=secret_arn)
+        return response.get("SecretString", "")
+    except Exception:
+        return ""
+
+
 class Settings(BaseSettings):
     """Application settings loaded from environment variables.
 
@@ -43,6 +65,7 @@ class Settings(BaseSettings):
 
     # Gemini LLM (API key only - no GCP project required)
     gemini_api_key: str = ""
+    gemini_api_key_secret_arn: str = ""  # AWS Secrets Manager ARN
 
     # AWS Cognito Authentication
     cognito_user_pool_id: str = ""
@@ -57,6 +80,15 @@ class Settings(BaseSettings):
 
     # Development settings (NEVER enable in production!)
     dev_auth_bypass: bool = False
+
+    @property
+    def resolved_gemini_api_key(self) -> str:
+        """Get Gemini API key, fetching from Secrets Manager if needed."""
+        if self.gemini_api_key:
+            return self.gemini_api_key
+        if self.gemini_api_key_secret_arn:
+            return get_secret_from_aws(self.gemini_api_key_secret_arn)
+        return ""
 
 
 @lru_cache

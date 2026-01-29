@@ -169,6 +169,7 @@ class ServerlessAPIComponent(pulumi.ComponentResource):
             "FARGATE_TASK_DEFINITION_ARN": fargate_task_definition_arn,
             "FARGATE_SUBNETS": fargate_subnets,
             "FARGATE_SECURITY_GROUP_ID": fargate_security_group_id,
+            "GEMINI_API_KEY_SECRET_ARN": secrets_arn,
         }
 
         # Lambda Function (Container image based)
@@ -239,6 +240,17 @@ class ServerlessAPIComponent(pulumi.ComponentResource):
             target=pulumi.Output.concat("integrations/", self.integration.id),
             authorization_type="JWT",
             authorizer_id=self.authorizer.id,
+            opts=pulumi.ResourceOptions(parent=self),
+        )
+
+        # OPTIONS preflight route (no auth) - required for CORS
+        # The HTTP API CORS config handles the response, but we need a route without auth
+        aws.apigatewayv2.Route(
+            f"{name}-route-options",
+            api_id=self.api.id,
+            route_key="OPTIONS /{proxy+}",
+            target=pulumi.Output.concat("integrations/", self.integration.id),
+            authorization_type="NONE",
             opts=pulumi.ResourceOptions(parent=self),
         )
 

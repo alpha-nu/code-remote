@@ -1,54 +1,52 @@
-# Local development environment
-name: coderemote
+# Code Remote - Local Development Environment
+# Usage: docker compose up --build
+#
+# Services:
+#   - frontend: React app served via nginx on http://localhost:3000
+#   - api: FastAPI backend on http://localhost:8000
+#
+# The frontend proxies /api requests to the backend.
+
+name: code-remote
 
 services:
+  # React frontend with nginx
   frontend:
     build:
       context: ./frontend
+      dockerfile: Dockerfile
     ports:
       - "3000:80"
+    environment:
+      # API URL for client-side calls (browser makes requests here)
+      - VITE_API_URL=http://localhost:8000
     depends_on:
-      - api
+      api:
+        condition: service_healthy
     restart: unless-stopped
 
+  # FastAPI backend
   api:
     build:
       context: ./backend
+      dockerfile: Dockerfile
       target: development
     ports:
       - "8000:8000"
     volumes:
+      # Mount source for hot reload
       - ./backend:/app
+      # Don't overwrite installed packages
+      - /app/.venv
+    env_file:
+      - ./backend/.env
     environment:
-      - DEBUG=true
-      - ENVIRONMENT=development
-      - REDIS_URL=redis://redis:6379
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/coderemote
-    depends_on:
-      - redis
-      - db
+      # Override for Docker networking
+      - CORS_ORIGINS=["http://localhost:3000","http://localhost:8000"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     restart: unless-stopped
-
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    restart: unless-stopped
-
-  db:
-    image: postgres:15-alpine
-    ports:
-      - "5432:5432"
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: coderemote
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    restart: unless-stopped
-
-volumes:
-  redis_data:
-  postgres_data:

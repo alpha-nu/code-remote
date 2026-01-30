@@ -138,5 +138,5 @@ def get_cognito_auth() -> CognitoAuth:
     return CognitoAuth(
         user_pool_id=settings.cognito_user_pool_id,
         client_id=settings.cognito_client_id,
-        region=settings.cognito_region,
+        region=settings.resolved_cognito_region,
     )

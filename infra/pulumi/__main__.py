@@ -23,7 +23,10 @@ from components.vpc import VPCComponent
 
 # Get configuration
 config = pulumi.Config()
+aws_config = pulumi.Config("aws")
 environment = pulumi.get_stack()  # dev, staging, or prod
+aws_region = aws_config.require("region")  # Get from aws:region config
+gemini_model = config.require("gemini_model")  # Required: e.g., gemini-2.5-flash
 
 # Common tags for all resources
 common_tags = {
@@ -101,9 +104,10 @@ api = ServerlessAPIComponent(
     fargate_security_group_id=executor.security_group.id,
     image_tag="latest",
     env_vars={
+        "AWS_REGION": aws_region,
         "COGNITO_USER_POOL_ID": cognito.user_pool.id,
         "COGNITO_CLIENT_ID": cognito.user_pool_client.id,
-        "COGNITO_REGION": "us-east-1",
+        "GEMINI_MODEL": gemini_model,
         "DEBUG": "false" if environment == "prod" else "true",
         "CORS_ORIGINS": '["*"]',  # API Gateway handles CORS
     },

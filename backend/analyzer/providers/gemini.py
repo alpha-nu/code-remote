@@ -28,7 +28,7 @@ class GeminiProvider(LLMProvider):
         self._explicit_api_key = api_key
         self._client: genai.Client | None = None
         self._prompt_template: str | None = None
-        self._model = "gemini-3-flash-preview"  # Updated model for new SDK
+        self._model: str | None = None  # Loaded from settings during init
         self._initialized = False
 
     def _ensure_initialized(self) -> None:
@@ -39,10 +39,12 @@ class GeminiProvider(LLMProvider):
         self._initialized = True
         # Get API key (either explicit or from settings)
         self.api_key = self._explicit_api_key or settings.resolved_gemini_api_key
+        # Get model from settings
+        self._model = settings.gemini_model
 
         if self.api_key:
             self._client = genai.Client(api_key=self.api_key)
-            logger.info("Gemini client initialized successfully")
+            logger.info(f"Gemini client initialized with model: {self._model}")
         else:
             logger.warning("Gemini API key not configured")
 

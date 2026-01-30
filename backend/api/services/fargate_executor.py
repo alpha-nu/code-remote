@@ -22,8 +22,8 @@ class FargateExecutorService:
 
     def __init__(self):
         """Initialize the Fargate executor service."""
-        self.ecs_client = boto3.client("ecs", region_name=settings.cognito_region)
-        self.logs_client = boto3.client("logs", region_name=settings.cognito_region)
+        self.ecs_client = boto3.client("ecs", region_name=settings.aws_region)
+        self.logs_client = boto3.client("logs", region_name=settings.aws_region)
         self.cluster_arn = settings.fargate_cluster_arn
         self.task_definition_arn = settings.fargate_task_definition_arn
         self.subnets = [s.strip() for s in settings.fargate_subnets.split(",") if s.strip()]

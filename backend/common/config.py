@@ -66,11 +66,15 @@ class Settings(BaseSettings):
     # Gemini LLM (API key only - no GCP project required)
     gemini_api_key: str = ""
     gemini_api_key_secret_arn: str = ""  # AWS Secrets Manager ARN
+    gemini_model: str = "gemini-2.5-flash"  # Model name for Gemini API
+
+    # AWS Configuration
+    aws_region: str = "us-east-1"  # Default AWS region for all services
 
     # AWS Cognito Authentication
     cognito_user_pool_id: str = ""
     cognito_client_id: str = ""
-    cognito_region: str = "us-east-1"
+    cognito_region: str = ""  # Falls back to aws_region if not set
 
     # Fargate Executor (for Lambda mode)
     fargate_cluster_arn: str = ""
@@ -88,6 +92,12 @@ class Settings(BaseSettings):
             return self.gemini_api_key
         if self.gemini_api_key_secret_arn:
             return get_secret_from_aws(self.gemini_api_key_secret_arn)
+        return ""
+
+    @property
+    def resolved_cognito_region(self) -> str:
+        """Get Cognito region, falling back to aws_region if not set."""
+        return self.cognito_region or self.aws_region
         return ""
 
 

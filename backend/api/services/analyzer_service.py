@@ -32,6 +32,7 @@ class AnalyzerService:
             suggestions=result.suggestions,
             error=result.error,
             available=self._analyzer.is_available(),
+            model=result.model,
         )
 
     def is_available(self) -> bool:

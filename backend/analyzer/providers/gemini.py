@@ -87,6 +87,7 @@ Respond with JSON only:
                 time_explanation="Gemini API key not configured",
                 space_explanation="Gemini API key not configured",
                 error="GEMINI_API_KEY not set",
+                model=self._model,
             )
 
         try:
@@ -116,6 +117,7 @@ Respond with JSON only:
                 space_explanation="Failed to parse LLM response",
                 raw_response=raw_text if "raw_text" in locals() else None,
                 error=f"JSON parse error: {str(e)}",
+                model=self._model,
             )
         except Exception as e:
             logger.error(f"Gemini API error: {e}")
@@ -125,6 +127,7 @@ Respond with JSON only:
                 time_explanation="LLM analysis failed",
                 space_explanation="LLM analysis failed",
                 error=str(e),
+                model=self._model,
             )
 
     def _parse_response(self, raw_text: str) -> ComplexityResult:
@@ -156,6 +159,7 @@ Respond with JSON only:
             algorithm_identified=data.get("algorithm_identified"),
             suggestions=data.get("suggestions"),
             raw_response=raw_text,
+            model=self._model,
         )
 
 

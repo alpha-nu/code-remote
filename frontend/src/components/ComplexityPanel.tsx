@@ -106,6 +106,13 @@ export function ComplexityPanel() {
             </ul>
           </div>
         )}
+
+        {/* Model attribution */}
+        {analysis.model && (
+          <div className="model-attribution">
+            Analyzed by <span className="model-name">{analysis.model}</span>
+          </div>
+        )}
       </div>
     </div>
   );

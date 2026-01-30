@@ -43,6 +43,7 @@ export interface AnalyzeResponse {
   suggestions: string[] | null;
   error: string | null;
   available: boolean;
+  model: string | null;
 }
 
 export interface AnalysisStatus {

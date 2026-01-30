@@ -38,3 +38,7 @@ class AnalyzeResponse(BaseModel):
         default=True,
         description="Whether LLM analysis is available (API key configured)",
     )
+    model: str | None = Field(
+        default=None,
+        description="LLM model used for analysis",
+    )

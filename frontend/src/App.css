@@ -766,6 +766,20 @@ input[type="checkbox"] {
   color: var(--text-secondary);
 }
 
+.model-attribution {
+  margin-top: 12px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-color);
+  font-size: 11px;
+  color: var(--text-secondary);
+  text-align: right;
+}
+
+.model-attribution .model-name {
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+}
+
 .unavailable-message {
   color: var(--text-secondary);
   font-style: italic;

@@ -16,6 +16,7 @@ class ComplexityResult:
     suggestions: list[str] | None = None
     raw_response: str | None = None
     error: str | None = None
+    model: str | None = None
 
 
 class LLMProvider(ABC):

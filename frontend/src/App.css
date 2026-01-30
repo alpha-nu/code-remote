@@ -452,10 +452,19 @@ input[type="checkbox"] {
 
 .output-content .loading-spinner {
   padding: 12px;
+  background-color: transparent;
 }
 
 .output-content.empty {
   padding: 12px;
+  background-color: transparent;
+}
+
+.output-content.empty ~ .output-content-inner,
+.output-content:has(.loading-spinner) .output-content-inner,
+.output-content:has(.empty) .output-content-inner {
+  background-color: transparent;
+  padding: 0;
 }
 
 .output-content.error-content {

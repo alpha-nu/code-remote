@@ -21,8 +21,8 @@ export function OutputPanel() {
     hasRun,
   } = useEditorStore();
 
-  // Splitter state: percentage of available space for output section (default 60%)
-  const [splitPercent, setSplitPercent] = useState(60);
+  // Splitter state: percentage of available space for output section (default 50%)
+  const [splitPercent, setSplitPercent] = useState(50);
   const panelRef = useRef<HTMLDivElement>(null);
   const draggingRef = useRef(false);
   const dragOffsetRef = useRef(0);

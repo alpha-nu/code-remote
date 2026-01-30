@@ -99,11 +99,14 @@ Respond with JSON only:
                 contents=prompt,
                 config=types.GenerateContentConfig(
                     temperature=0.1,  # Low temperature for consistent analysis
-                    max_output_tokens=1024,
+                    max_output_tokens=2048,  # Increased for detailed responses
                 ),
             )
 
             raw_text = response.text.strip() if response.text else ""
+
+            # Log raw response for debugging
+            logger.debug(f"Raw Gemini response: {repr(raw_text)}")
 
             # Parse JSON response
             return self._parse_response(raw_text)

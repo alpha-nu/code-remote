@@ -5,6 +5,7 @@
 import { useEditorStore } from '../store/editorStore';
 import { ComplexityPanel } from './ComplexityPanel';
 import spinner from '../assets/spinner.svg';
+import { useRef, useState, useEffect } from 'react';
 
 export function OutputPanel() {
   const {
@@ -19,9 +20,64 @@ export function OutputPanel() {
     setTimeoutSeconds,
     hasRun,
   } = useEditorStore();
+
+  // Splitter state: percentage of available space for output section (default 60%)
+  const [splitPercent, setSplitPercent] = useState(60);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const draggingRef = useRef(false);
+  const dragOffsetRef = useRef(0);
+
+  // Handle dragging
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!draggingRef.current || !panelRef.current) return;
+
+      const panel = panelRef.current;
+      const rect = panel.getBoundingClientRect();
+      const availableHeight = rect.height - 48 - 40; // subtract header and tools height
+      const mouseY = e.clientY - rect.top - 48 - 40 - dragOffsetRef.current;
+      const newPercent = Math.max(20, Math.min(80, (mouseY / availableHeight) * 100));
+      setSplitPercent(newPercent);
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (!draggingRef.current || !panelRef.current) return;
+      e.preventDefault();
+
+      const touch = e.touches[0];
+      const panel = panelRef.current;
+      const rect = panel.getBoundingClientRect();
+      const availableHeight = rect.height - 48 - 40;
+      const touchY = touch.clientY - rect.top - 48 - 40 - dragOffsetRef.current;
+      const newPercent = Math.max(20, Math.min(80, (touchY / availableHeight) * 100));
+      setSplitPercent(newPercent);
+    };
+
+    const handleMouseUp = () => {
+      draggingRef.current = false;
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('touchmove', handleTouchMove, { passive: false });
+    document.addEventListener('mouseup', handleMouseUp);
+    document.addEventListener('touchend', handleMouseUp);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('touchmove', handleTouchMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('touchend', handleMouseUp);
+    };
+  }, []);
+
+  // Show splitter whenever we have execution results
+  const showSplitter = !!result;
+
   // Always render the panel header and the tools area, then render content
   return (
-    <div className="output-panel">
+    <div className="output-panel" ref={panelRef}>
       <div className="output-header">
         <span className="output-title">Output</span>
         {result ? (
@@ -91,81 +147,121 @@ export function OutputPanel() {
         </div>
       </div>
 
-      <div className="output-content">
-        {isExecuting && (
-          <div className="loading-spinner">
-            <img src={spinner} className="spinner-logo" alt="executing" /> Executing code...
+      <div className="output-sections-container">
+        <div
+          className="output-content-wrapper"
+          style={showSplitter ? { height: `${splitPercent}%` } : undefined}
+        >
+          <div className="output-content">
+            <div className="output-content-inner">
+            {isExecuting && (
+              <div className="loading-spinner">
+                <img src={spinner} className="spinner-logo" alt="executing" /> Executing code...
+              </div>
+            )}
+
+            {apiError && (
+              <div className="output-content error-content">
+                <pre>{apiError}</pre>
+              </div>
+            )}
+
+            {!isExecuting && !apiError && !result && (
+              <div className="output-content empty">
+                <p>Click "Run" to execute your code</p>
+              </div>
+            )}
+
+            {result && (
+              <>
+                {/* Stdout */}
+                {result.stdout && (
+                  <div className="output-section">
+                    <div className="section-label">stdout</div>
+                    <pre className="stdout">{result.stdout}</pre>
+                  </div>
+                )}
+
+                {/* Stderr */}
+                {result.stderr && (
+                  <div className="output-section">
+                    <div className="section-label">stderr</div>
+                    <pre className="stderr">{result.stderr}</pre>
+                  </div>
+                )}
+
+                {/* Error */}
+                {result.error && (
+                  <div className="output-section">
+                    <div className="section-label error-label">
+                      {result.error_type || 'Error'}
+                      {result.timed_out && ' (Timeout)'}
+                    </div>
+                    <pre className="error-message">{result.error}</pre>
+                  </div>
+                )}
+
+                {/* Security Violations */}
+                {result.security_violations.length > 0 && (
+                  <div className="output-section">
+                    <div className="section-label error-label">Security Violations</div>
+                    <ul className="violations-list">
+                      {result.security_violations.map((v, i) => (
+                        <li key={i}>
+                          <strong>{v.type}</strong>
+                          {v.line && ` (line ${v.line})`}: {v.message}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Empty success state */}
+                {result.success && !result.stdout && !result.stderr && (
+                  <div className="output-section">
+                    <p className="empty-output">Code executed successfully with no output.</p>
+                  </div>
+                )}
+              </>
+            )}
+            </div>
+          </div>
+        </div>
+
+        {/* Draggable splitter */}
+        {showSplitter && (
+          <div
+            className="output-splitter"
+            role="separator"
+            aria-orientation="horizontal"
+            aria-valuenow={splitPercent}
+            onMouseDown={(e) => {
+              draggingRef.current = true;
+              dragOffsetRef.current = 0;
+              document.body.style.userSelect = 'none';
+              document.body.style.cursor = 'row-resize';
+              e.preventDefault();
+            }}
+            onTouchStart={(e) => {
+              draggingRef.current = true;
+              dragOffsetRef.current = 0;
+              document.body.style.userSelect = 'none';
+              document.body.style.cursor = 'row-resize';
+              e.preventDefault();
+            }}
+          >
+            <div className="splitter-handle" />
           </div>
         )}
 
-        {apiError && (
-          <div className="output-content error-content">
-            <pre>{apiError}</pre>
-          </div>
-        )}
-
-        {!isExecuting && !apiError && !result && (
-          <div className="output-content empty">
-            <p>Click "Run" to execute your code</p>
-          </div>
-        )}
-
-        {result && (
-          <>
-            {/* Stdout */}
-            {result.stdout && (
-              <div className="output-section">
-                <div className="section-label">stdout</div>
-                <pre className="stdout">{result.stdout}</pre>
-              </div>
-            )}
-
-            {/* Stderr */}
-            {result.stderr && (
-              <div className="output-section">
-                <div className="section-label">stderr</div>
-                <pre className="stderr">{result.stderr}</pre>
-              </div>
-            )}
-
-            {/* Error */}
-            {result.error && (
-              <div className="output-section">
-                <div className="section-label error-label">
-                  {result.error_type || 'Error'}
-                  {result.timed_out && ' (Timeout)'}
-                </div>
-                <pre className="error-message">{result.error}</pre>
-              </div>
-            )}
-
-            {/* Security Violations */}
-            {result.security_violations.length > 0 && (
-              <div className="output-section">
-                <div className="section-label error-label">Security Violations</div>
-                <ul className="violations-list">
-                  {result.security_violations.map((v, i) => (
-                    <li key={i}>
-                      <strong>{v.type}</strong>
-                      {v.line && ` (line ${v.line})`}: {v.message}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {/* Empty success state */}
-            {result.success && !result.stdout && !result.stderr && (
-              <div className="output-section">
-                <p className="empty-output">Code executed successfully with no output.</p>
-              </div>
-            )}
-
-            {/* Complexity Analysis */}
+        {/* Complexity Analysis in separate scrollable container */}
+        {showSplitter && (
+          <div
+            className="complexity-panel-wrapper"
+            style={{ height: `${100 - splitPercent}%` }}
+          >
             <ComplexityPanel />
-
-            {/* analyze button moved to top tools area */}
-          </>
+          </div>
         )}
       </div>
     </div>

@@ -2,28 +2,38 @@
 
 ## Overview
 
-This project uses GitHub Actions for CI/CD with automated deployments to AWS EKS.
+This project uses GitHub Actions for CI/CD with automated deployments to AWS serverless infrastructure (Lambda + S3/CloudFront).
 
-## Deployment Workflow
+## Architecture
+
+| Component | AWS Service |
+|-----------|-------------|
+| API | Lambda + API Gateway |
+| Frontend | S3 + CloudFront |
+| Auth | Cognito |
+| Container Registry | ECR |
+| Infrastructure | Pulumi |
+
+## Deployment Triggers
 
 ### Automatic Deployments
 
-Push to a release branch to trigger automatic deployment:
+| Trigger | Environment | Example |
+|---------|-------------|---------|
+| Push to `main` | **dev** | `git push origin main` |
+| Push version tag | **prod** | `git tag v1.0.0 && git push origin v1.0.0` |
 
 ```bash
-# Deploy to dev
-git checkout -b release/dev
-git push origin release/dev
+# Deploy to dev (automatic on merge to main)
+git checkout main
+git merge feature/my-feature
+git push origin main
+# → Triggers: Deploy to dev environment
 
-# Promote to staging
-git checkout release/staging
-git merge release/dev
-git push origin release/staging
-
-# Promote to production
-git checkout release/prod
-git merge release/staging
-git push origin release/prod
+# Deploy to prod (create a version tag)
+git tag v1.0.0
+git push origin v1.0.0
+# → Triggers: Deploy to prod environment
 ```
 
 ### Manual Deployments
@@ -31,16 +41,19 @@ git push origin release/prod
 Use the GitHub Actions UI to trigger a manual deployment:
 1. Go to Actions → Deploy
 2. Click "Run workflow"
-3. Select the target environment
+3. Select the target environment (dev or prod)
 
 ## Pipeline Stages
 
-1. **Setup** - Determine target environment from branch name
-2. **Test** - Run all unit tests before deploying
+1. **Setup** - Determine target environment from trigger (main → dev, tag → prod)
+2. **Test** - Run backend and frontend tests
 3. **Infrastructure** - Deploy/update AWS resources with Pulumi
-4. **Build Images** - Build and push Docker images to ECR
-5. **Deploy K8s** - Apply Kubernetes manifests with Kustomize
-6. **Smoke Tests** - Run basic health checks (dev/staging only)
+4. **Build API Image** - Build and push Lambda container image to ECR
+5. **Build Executor Image** - Build and push Fargate executor image to ECR
+6. **Deploy Backend** - Update Lambda function with new image
+7. **Deploy Frontend** - Build React app, sync to S3, invalidate CloudFront
+8. **Smoke Tests** - Verify health endpoints and auth requirements
+9. **Summary** - Generate deployment report
 
 ## Required GitHub Secrets
 
@@ -57,92 +70,120 @@ Configure these secrets in your repository settings:
 Create these environments in repository settings for deployment approvals:
 
 - **dev** - No approval required
-- **staging** - Optional approval
 - **prod** - Required approval (add reviewers)
 
-## Manual Kubernetes Operations
+## Pulumi Stack Configuration
+
+Stack configs are stored in `infra/pulumi/`:
+
+| File | Environment |
+|------|-------------|
+| `Pulumi.code-remote-dev.yaml` | dev |
+| `Pulumi.code-remote-staging.yaml` | staging (future) |
+| `Pulumi.code-remote-prod.yaml` | prod |
+
+## Manual Operations
 
 ### Check deployment status
 
 ```bash
-# Configure kubectl
-aws eks update-kubeconfig --name <cluster-name> --region us-east-1
+# View Lambda function
+aws lambda get-function --function-name code-remote-dev-api-func-xxxxx
 
-# View pods
-kubectl get pods -n code-remote
+# View Lambda logs
+aws logs tail /aws/lambda/code-remote-dev-api-func-xxxxx --follow
 
-# View logs
-kubectl logs -f deployment/api -n code-remote
-kubectl logs -f deployment/executor -n code-remote
-
-# Check events
-kubectl get events -n code-remote --sort-by='.lastTimestamp'
+# Check API Gateway
+curl https://xxxx.execute-api.us-east-1.amazonaws.com/health
 ```
 
-### Rollback deployment
+### Rollback Lambda deployment
 
 ```bash
-# Rollback to previous version
-kubectl rollout undo deployment/api -n code-remote
-kubectl rollout undo deployment/executor -n code-remote
+# List Lambda versions
+aws lambda list-versions-by-function --function-name <function-name>
 
-# Rollback to specific revision
-kubectl rollout undo deployment/api -n code-remote --to-revision=2
+# Update to previous version (if using aliases)
+aws lambda update-alias \
+  --function-name <function-name> \
+  --name live \
+  --function-version <previous-version>
+
+# Or redeploy previous commit
+git checkout <previous-commit>
+git tag v1.0.1  # New tag for rollback
+git push origin v1.0.1
 ```
 
-### Scale deployments
-
-```bash
-# Scale API (horizontal)
-kubectl scale deployment/api -n code-remote --replicas=5
-
-# Scale executors
-kubectl scale deployment/executor -n code-remote --replicas=10
-```
-
-## Pulumi Manual Operations
-
-### Preview changes
+### Pulumi operations
 
 ```bash
 cd infra/pulumi
+
+# Preview changes
 pulumi preview --stack code-remote-dev
-```
 
-### Deploy infrastructure only
-
-```bash
+# Deploy infrastructure only
 pulumi up --stack code-remote-dev --yes
-```
 
-### View outputs
-
-```bash
+# View outputs
 pulumi stack output --stack code-remote-dev
+
+# Refresh state
+pulumi refresh --stack code-remote-dev
+
+# Destroy environment (CAUTION)
+pulumi destroy --stack code-remote-dev --yes
 ```
 
-### Destroy environment (CAUTION)
+### Frontend operations
 
 ```bash
-pulumi destroy --stack code-remote-dev --yes
+# Manual S3 sync (emergency)
+aws s3 sync frontend/dist/ s3://<bucket-name>/ --delete
+
+# Invalidate CloudFront cache
+aws cloudfront create-invalidation \
+  --distribution-id <distribution-id> \
+  --paths "/*"
 ```
 
 ## Troubleshooting
 
-### Pods not starting
+### Lambda cold starts
 
-1. Check pod events: `kubectl describe pod <pod-name> -n code-remote`
-2. Check node resources: `kubectl top nodes`
-3. Verify image pull: Check ECR permissions and image tags
+1. Check function memory/timeout settings in Pulumi
+2. Consider provisioned concurrency for prod
+3. Monitor with CloudWatch metrics
 
-### gVisor issues
+### Lambda deployment failures
 
-1. Ensure nodes have gVisor installed
-2. Check RuntimeClass: `kubectl get runtimeclass gvisor`
-3. Verify node labels: `kubectl get nodes --show-labels`
+1. Check ECR image exists: `aws ecr describe-images --repository-name <repo>`
+2. Verify Lambda execution role permissions
+3. Check CloudWatch logs for startup errors
+
+### Frontend not updating
+
+1. Verify S3 sync completed
+2. Check CloudFront invalidation status
+3. Clear browser cache / test in incognito
 
 ### Pulumi state issues
 
 1. Check Pulumi Cloud for state conflicts
 2. Run `pulumi refresh` to sync state
 3. Use `pulumi stack export/import` for recovery
+
+## Deployed URLs
+
+After deployment, find URLs in:
+- GitHub Actions summary
+- Pulumi stack outputs: `pulumi stack output --stack code-remote-dev`
+
+Example outputs:
+```
+api_endpoint: https://xxxx.execute-api.us-east-1.amazonaws.com
+frontend_url: https://dxxxxxx.cloudfront.net
+cognito_user_pool_id: us-east-1_XXXXXX
+cognito_client_id: xxxxxxxxxxxxxxxxx
+```

@@ -86,6 +86,7 @@ describe('useEditorStore', () => {
         suggestions: null,
         error: null,
         available: true,
+        model: 'gemini-pro',
       };
       setAnalysis(mockAnalysis);
       expect(useEditorStore.getState().analysis).toEqual(mockAnalysis);
@@ -174,6 +175,7 @@ describe('useEditorStore', () => {
         suggestions: null,
         error: null,
         available: true,
+        model: 'gemini-pro',
       };
 
       store.setAnalysis(mockAnalysisObj);
@@ -201,6 +203,7 @@ describe('useEditorStore', () => {
         suggestions: [],
         error: null,
         available: true,
+        model: 'gemini-pro',
       };
 
       // Dynamically mock the module used by the store's analyze() (../api/client)

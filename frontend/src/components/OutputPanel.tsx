@@ -154,13 +154,13 @@ export function OutputPanel() {
         >
           <div className="output-content">
             <div className="output-content-inner">
-            {isExecuting && (
+            {isExecuting && !result && (
               <div className="loading-spinner">
                 <img src={spinner} className="spinner-logo" alt="executing" /> Executing code...
               </div>
             )}
 
-            {apiError && (
+            {apiError && !result && (
               <div className="output-content error-content">
                 <pre>{apiError}</pre>
               </div>

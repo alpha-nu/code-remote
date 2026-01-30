@@ -594,3 +594,413 @@ We will build one component at a time, verifying each piece works before moving 
 - `.github/copilot-instructions.md` has been generated
 - `documentation/RELEASE_WORKFLOW.md` documents deployment workflow
 - **Current Phase: 1 - Backend Foundation** (Ready to start)
+
+---
+
+## Phase 9: Persistence & Code Snippets (PLANNING)
+
+**Goal:** Allow users to save, organize, and search code snippets with AI-powered semantic search
+
+### Feature Overview
+
+Users can:
+- Save code snippets with name, description, and analysis results
+- Star favorite snippets
+- Semantic search: "find my recursive snippets"
+
+### Database Options Analysis
+
+#### Option 1: PostgreSQL + pgvector (Recommended)
+**Aurora Serverless v2 or RDS**
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  PostgreSQL + pgvector                                      │
+├─────────────────────────────────────────────────────────────┤
+│  ✓ Single DB for structured data AND vector embeddings      │
+│  ✓ Relational model fits users → snippets naturally         │
+│  ✓ pgvector: mature, supports cosine/L2/inner product       │
+│  ✓ Hybrid search: combine WHERE clauses with vector search  │
+│  ✓ Aurora Serverless v2 scales to near-zero                 │
+│  ✗ Not truly serverless (min capacity units)                │
+│  ✗ Cold starts possible                                     │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Schema:**
+```sql
+-- Users (from Cognito, cached locally)
+CREATE TABLE users (
+    id UUID PRIMARY KEY,
+    cognito_sub VARCHAR(255) UNIQUE NOT NULL,
+    email VARCHAR(255),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Snippets
+CREATE TABLE snippets (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    code TEXT NOT NULL,
+    language VARCHAR(50) DEFAULT 'python',
+    
+    -- Analysis results (nullable until analyzed)
+    time_complexity VARCHAR(50),
+    space_complexity VARCHAR(50),
+    explanation TEXT,
+    suggestions TEXT,
+    analyzed_at TIMESTAMPTZ,
+    model_used VARCHAR(100),
+    
+    -- Metadata
+    is_starred BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    
+    -- Vector embedding for semantic search (768 dims for Gemini)
+    embedding vector(768)
+);
+
+-- Indexes
+CREATE INDEX idx_snippets_user_id ON snippets(user_id);
+CREATE INDEX idx_snippets_starred ON snippets(user_id, is_starred) WHERE is_starred = TRUE;
+CREATE INDEX idx_snippets_embedding ON snippets USING ivfflat (embedding vector_cosine_ops);
+```
+
+---
+
+#### Option 2: DynamoDB + OpenSearch Serverless
+**Fully Serverless, AWS-Native**
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  DynamoDB + OpenSearch Serverless                           │
+├─────────────────────────────────────────────────────────────┤
+│  ✓ Truly serverless, scales to zero                         │
+│  ✓ Native AWS integration                                   │
+│  ✓ OpenSearch has k-NN vector search                        │
+│  ✗ Two services to manage and sync                          │
+│  ✗ OpenSearch Serverless has minimum cost (~$700/mo)        │
+│  ✗ Complex for relational queries (denormalization needed)  │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Schema (Single-Table Design):**
+```
+PK                      SK                      Attributes
+─────────────────────────────────────────────────────────────
+USER#<userId>           PROFILE                 email, createdAt
+USER#<userId>           SNIPPET#<snippetId>     name, code, description, ...
+USER#<userId>           STARRED#<snippetId>     (GSI for starred queries)
+```
+
+---
+
+#### Option 3: MongoDB Atlas
+**Flexible Schema + Built-in Vector Search**
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  MongoDB Atlas                                              │
+├─────────────────────────────────────────────────────────────┤
+│  ✓ Atlas Vector Search built-in (no separate service)       │
+│  ✓ Flexible schema for evolving analysis results            │
+│  ✓ Good aggregation pipeline for complex queries            │
+│  ✓ Serverless tier available                                │
+│  ✗ Outside AWS ecosystem (adds latency)                     │
+│  ✗ Another platform/credentials to manage                   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+#### Option 4: Supabase (PostgreSQL + pgvector)
+**Managed PostgreSQL with Extras**
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Supabase                                                   │
+├─────────────────────────────────────────────────────────────┤
+│  ✓ Managed Postgres + pgvector                              │
+│  ✓ Real-time subscriptions (future collab features)         │
+│  ✓ Built-in auth (could replace Cognito eventually)         │
+│  ✓ Edge functions                                           │
+│  ✗ Outside AWS (latency, another platform)                  │
+│  ✗ Vendor lock-in to Supabase specifics                     │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+#### Option 5: Neo4j AuraDB (Graph Database)
+**Native Graph with Vector Search**
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│  Neo4j AuraDB + Vector Index                                            │
+├─────────────────────────────────────────────────────────────────────────┤
+│  ✓ Native graph traversals for relationship queries                     │
+│  ✓ Neo4j 5.x has native vector search (vector indexes)                  │
+│  ✓ Cypher query language is expressive and readable                     │
+│  ✓ AuraDB Free tier available (good for dev)                            │
+│  ✓ Excellent for "similar to", "related to", recommendations            │
+│  ✓ Can model code patterns as a knowledge graph                         │
+│  ✗ Outside AWS ecosystem (adds latency, another platform)               │
+│  ✗ Overkill if relationships stay simple                                │
+│  ✗ Learning curve for Cypher if team is SQL-focused                     │
+│  ✗ AuraDB Pro pricing can get expensive                                 │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+**Why Graph Databases Could Be Valuable:**
+
+For semantic search and future features, graphs excel at modeling relationships:
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│  Potential Relationships in Code Snippets                               │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   ┌──────┐         ┌─────────┐         ┌─────────┐                     │
+│   │ User │──owns──▶│ Snippet │──uses──▶│ Pattern │                     │
+│   └──────┘         └─────────┘         └─────────┘                     │
+│      │                  │                   │                           │
+│      │ starred          │ similar_to        │ related_to               │
+│      ▼                  ▼                   ▼                           │
+│   ┌─────────┐      ┌─────────┐         ┌─────────┐                     │
+│   │ Snippet │      │ Snippet │         │ Pattern │                     │
+│   └─────────┘      └─────────┘         └─────────┘                     │
+│                         │                                               │
+│                         │ has_complexity                                │
+│                         ▼                                               │
+│                    ┌───────────┐                                        │
+│                    │ O(n log n)│                                        │
+│                    └───────────┘                                        │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+**Graph Schema:**
+
+```cypher
+// Node types
+(:User {id, cognito_sub, email, created_at})
+(:Snippet {id, name, description, code, language, time_complexity, 
+           space_complexity, embedding, created_at, updated_at})
+(:Pattern {name, description})  -- e.g., "recursion", "memoization", "two-pointer"
+(:Complexity {notation, category})  -- e.g., "O(n)", "linear"
+(:Tag {name})
+
+// Relationship types
+(:User)-[:OWNS]->(:Snippet)
+(:User)-[:STARRED {starred_at}]->(:Snippet)
+(:Snippet)-[:SIMILAR_TO {score}]->(:Snippet)  -- computed from embeddings
+(:Snippet)-[:USES]->(:Pattern)  -- extracted by LLM during analysis
+(:Snippet)-[:HAS_TIME_COMPLEXITY]->(:Complexity)
+(:Snippet)-[:HAS_SPACE_COMPLEXITY]->(:Complexity)
+(:Snippet)-[:TAGGED_WITH]->(:Tag)
+(:Pattern)-[:RELATED_TO]->(:Pattern)  -- e.g., recursion → memoization
+```
+
+**Powerful Graph Queries:**
+
+```cypher
+-- "Find snippets similar to my starred snippets"
+MATCH (me:User {id: $userId})-[:STARRED]->(s:Snippet)-[:SIMILAR_TO*1..2]->(related:Snippet)
+WHERE NOT (me)-[:OWNS]->(related)
+RETURN related
+
+-- "Find all recursive patterns I've used"
+MATCH (me:User)-[:OWNS]->(s:Snippet)-[:USES]->(p:Pattern {name: 'recursion'})
+RETURN s, p
+
+-- "Recommend snippets based on users with similar patterns"
+MATCH (me:User)-[:OWNS]->(:Snippet)-[:USES]->(p:Pattern)<-[:USES]-(:Snippet)<-[:OWNS]-(other:User)
+MATCH (other)-[:STARRED]->(recommended:Snippet)
+WHERE NOT (me)-[:OWNS]->(recommended)
+RETURN recommended, count(*) AS score ORDER BY score DESC
+```
+
+**Hybrid Search (Vector + Graph):**
+
+```cypher
+// Semantic search with graph context
+CALL db.index.vector.queryNodes('snippet-embeddings', 10, $query_embedding)
+YIELD node AS snippet, score
+MATCH (user:User {id: $userId})-[:OWNS]->(snippet)
+OPTIONAL MATCH (snippet)-[:USES]->(pattern:Pattern)
+RETURN snippet, collect(pattern.name) AS patterns, score
+ORDER BY score DESC
+```
+
+---
+
+#### Option 6: Amazon Neptune (AWS-Native Graph)
+**AWS-Managed Graph Database**
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│  Amazon Neptune                                                         │
+├─────────────────────────────────────────────────────────────────────────┤
+│  ✓ AWS-native, VPC integration, IAM auth                                │
+│  ✓ Supports both Gremlin and SPARQL                                     │
+│  ✓ Neptune Analytics has vector similarity (preview)                    │
+│  ✓ Serverless option available                                          │
+│  ✗ More expensive than Neo4j AuraDB Free                                │
+│  ✗ Gremlin syntax is verbose compared to Cypher                         │
+│  ✗ Vector search less mature than pgvector or Neo4j                     │
+│  ✗ Minimum ~$0.10/hour even for serverless                              │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### Graph vs. Relational Comparison
+
+| Feature | Relational (pgvector) | Graph (Neo4j) |
+|---------|----------------------|---------------|
+| **User → Snippet CRUD** | ✅ Simple, fast | ⚠️ Works but overkill |
+| **Semantic search** | ✅ pgvector excellent | ✅ Neo4j vector indexes |
+| **"Similar snippets"** | ⚠️ Requires joins | ✅ Native traversal |
+| **Pattern knowledge graph** | ❌ Complex JOINs | ✅ Natural fit |
+| **Recommendations** | ⚠️ Complex queries | ✅ Graph algorithms built-in |
+| **Multi-hop queries** | ❌ Recursive CTEs | ✅ Simple traversals |
+| **AWS integration** | ✅ Aurora native | ⚠️ Neptune or external |
+| **Operational simplicity** | ✅ Familiar SQL | ⚠️ New paradigm |
+
+---
+
+### Option 7: Hybrid Approach (PostgreSQL + Neo4j)
+**Best of Both Worlds**
+
+For projects that need strong CRUD with eventual graph capabilities:
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                        Hybrid Architecture                              │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │                      Lambda (FastAPI)                            │   │
+│  │  - CRUD operations → PostgreSQL                                  │   │
+│  │  - Recommendations → Neo4j                                       │   │
+│  │  - Semantic search → PostgreSQL (pgvector)                       │   │
+│  └─────────────────────────────────────────────────────────────────┘   │
+│                    │                           │                        │
+│                    ▼                           ▼                        │
+│  ┌──────────────────────────┐    ┌──────────────────────────────────┐  │
+│  │   Aurora PostgreSQL      │    │   Neo4j AuraDB                   │  │
+│  │   + pgvector             │───▶│   (sync via CDC/events)          │  │
+│  │                          │    │                                  │  │
+│  │   • Users table          │    │   • Pattern knowledge graph      │  │
+│  │   • Snippets table       │    │   • Similarity relationships     │  │
+│  │   • Vector embeddings    │    │   • Recommendations engine       │  │
+│  └──────────────────────────┘    └──────────────────────────────────┘  │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+**Phased Implementation:**
+1. **Phase 1:** PostgreSQL handles CRUD + semantic search (simpler, cheaper)
+2. **Phase 2:** If pattern detection is added (LLM extracts "uses recursion"), add Neo4j for the knowledge graph
+3. **Phase 3:** Use Neo4j for recommendations ("users who wrote similar code also liked...")
+
+---
+
+### Recommendation: **PostgreSQL + pgvector on Aurora Serverless v2**
+
+**Why:**
+
+| Factor | PostgreSQL + pgvector |
+|--------|----------------------|
+| **Data Model** | Relational fits perfectly (users → snippets) |
+| **Vector Search** | pgvector in same DB, hybrid queries |
+| **AWS Integration** | Aurora Serverless v2, IAM auth, VPC |
+| **Cost** | ~$0.12/ACU-hour, scales down when idle |
+| **Complexity** | Single database, familiar SQL |
+| **Future-proof** | Can add full-text search, JSON columns |
+
+**Hybrid Search Query Example:**
+```sql
+-- "Find my starred recursive snippets"
+SELECT id, name, description, code,
+       1 - (embedding <=> $query_embedding) AS similarity
+FROM snippets
+WHERE user_id = $user_id
+  AND is_starred = TRUE
+ORDER BY embedding <=> $query_embedding
+LIMIT 10;
+```
+
+**Why Not Start with Graph?**
+- MVP (save/search snippets) doesn't need graph traversals
+- PostgreSQL is operationally simpler
+- Can add Neo4j later without migrating (it's additive)
+
+**Why Keep Graph in Mind?**
+- The "semantic search" vision ("find my recursive snippets") is exactly what graphs excel at when combined with a pattern knowledge graph
+- Future features like "suggest similar code" or "learn from others' patterns" would benefit enormously
+
+---
+
+### Embedding Strategy
+
+For semantic search, embeddings are generated when snippets are saved:
+
+```
+┌─────────────────┐     ┌──────────────────┐     ┌─────────────┐
+│  Code Snippet   │────▶│  Embedding API   │────▶│  PostgreSQL │
+│  + Description  │     │  (Gemini/OpenAI) │     │  pgvector   │
+└─────────────────┘     └──────────────────┘     └─────────────┘
+                              │
+                              ▼
+                        768/1536 dims
+```
+
+**Options:**
+1. **Gemini Embedding** - `text-embedding-004` (768 dims) - already have API key
+2. **OpenAI** - `text-embedding-3-small` (1536 dims)
+3. **Self-hosted** - Sentence Transformers (free, but need compute)
+
+---
+
+### Proposed Architecture with Persistence
+
+```
+┌────────────────────────────────────────────────────────────────────┐
+│                         Code Remote                                │
+├────────────────────────────────────────────────────────────────────┤
+│                                                                    │
+│  ┌──────────┐    ┌──────────────┐    ┌─────────────────────────┐  │
+│  │ Frontend │───▶│ API Gateway  │───▶│ Lambda (FastAPI)        │  │
+│  └──────────┘    └──────────────┘    │  - /snippets CRUD       │  │
+│                                      │  - /snippets/search     │  │
+│                                      └───────────┬─────────────┘  │
+│                                                  │                │
+│                         ┌────────────────────────┼────────────┐   │
+│                         │                        │            │   │
+│                         ▼                        ▼            │   │
+│              ┌─────────────────┐    ┌─────────────────────┐   │   │
+│              │ Aurora Postgres │    │ Gemini Embedding    │   │   │
+│              │ + pgvector      │◀───│ API                 │   │   │
+│              └─────────────────┘    └─────────────────────┘   │   │
+│                                                               │   │
+└───────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### Implementation Steps (Phase 9)
+
+| Step | Task | Details |
+|------|------|---------|
+| 9.1 | Pulumi: Aurora Serverless v2 | VPC, subnet groups, security groups |
+| 9.2 | Database migrations | Alembic setup, initial schema |
+| 9.3 | SQLAlchemy models | User, Snippet with pgvector |
+| 9.4 | Snippet CRUD endpoints | POST/GET/PUT/DELETE /snippets |
+| 9.5 | Embedding service | Generate embeddings on save |
+| 9.6 | Search endpoint | /snippets/search with vector + filters |
+| 9.7 | Frontend: Snippets UI | Save dialog, library view, search |
+
+**Status:** PLANNING - Awaiting approval

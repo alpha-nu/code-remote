@@ -104,7 +104,7 @@ api = ServerlessAPIComponent(
     fargate_security_group_id=executor.security_group.id,
     image_tag="latest",
     env_vars={
-        "AWS_REGION": aws_region,
+        # Note: AWS_REGION is automatically set by Lambda runtime
         "COGNITO_USER_POOL_ID": cognito.user_pool.id,
         "COGNITO_CLIENT_ID": cognito.user_pool_client.id,
         "GEMINI_MODEL": gemini_model,

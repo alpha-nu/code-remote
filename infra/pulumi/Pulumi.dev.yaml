@@ -1,0 +1,3 @@
+config:
+  aws:region: us-east-1
+  code-remote:gemini_model: gemini-2.5-flash

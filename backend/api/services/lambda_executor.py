@@ -1,8 +1,8 @@
 """Lambda-compatible code executor using exec() with sandboxing.
 
 This executor runs code directly in the Lambda environment using exec()
-with a restricted globals environment. It's faster than Fargate but
-less isolated - suitable for simple code execution.
+with a restricted globals environment. This is a fast, in-process
+execution model suitable for simple code execution.
 """
 
 import io

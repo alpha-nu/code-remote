@@ -18,10 +18,6 @@ class ServerlessAPIComponent(pulumi.ComponentResource):
         cognito_user_pool_arn: pulumi.Input[str],
         cognito_user_pool_client_id: pulumi.Input[str],
         secrets_arn: pulumi.Input[str],
-        fargate_cluster_arn: pulumi.Input[str],
-        fargate_task_definition_arn: pulumi.Input[str],
-        fargate_subnets: pulumi.Input[str],
-        fargate_security_group_id: pulumi.Input[str],
         image_tag: str = "latest",
         env_vars: dict | None = None,
         tags: dict | None = None,
@@ -107,51 +103,6 @@ class ServerlessAPIComponent(pulumi.ComponentResource):
             opts=pulumi.ResourceOptions(parent=self),
         )
 
-        # ECS access policy (to run Fargate tasks)
-        ecs_policy = aws.iam.Policy(
-            f"{name}-ecs-policy",
-            policy=pulumi.Output.all(
-                fargate_cluster_arn, fargate_task_definition_arn
-            ).apply(
-                lambda args: json.dumps(
-                    {
-                        "Version": "2012-10-17",
-                        "Statement": [
-                            {
-                                "Effect": "Allow",
-                                "Action": [
-                                    "ecs:RunTask",
-                                    "ecs:StopTask",
-                                    "ecs:DescribeTasks",
-                                ],
-                                "Resource": "*",
-                                "Condition": {"ArnEquals": {"ecs:cluster": args[0]}},
-                            },
-                            {
-                                "Effect": "Allow",
-                                "Action": ["iam:PassRole"],
-                                "Resource": "*",
-                                "Condition": {
-                                    "StringLike": {
-                                        "iam:PassedToService": "ecs-tasks.amazonaws.com"
-                                    }
-                                },
-                            },
-                        ],
-                    }
-                )
-            ),
-            tags=self.tags,
-            opts=pulumi.ResourceOptions(parent=self),
-        )
-
-        aws.iam.RolePolicyAttachment(
-            f"{name}-ecs-attach",
-            role=self.role.name,
-            policy_arn=ecs_policy.arn,
-            opts=pulumi.ResourceOptions(parent=self),
-        )
-
         # CloudWatch Logs
         self.log_group = aws.cloudwatch.LogGroup(
             f"{name}-logs",
@@ -165,10 +116,6 @@ class ServerlessAPIComponent(pulumi.ComponentResource):
         lambda_env_vars = {
             **base_env_vars,
             "ENVIRONMENT": environment,
-            "FARGATE_CLUSTER_ARN": fargate_cluster_arn,
-            "FARGATE_TASK_DEFINITION_ARN": fargate_task_definition_arn,
-            "FARGATE_SUBNETS": fargate_subnets,
-            "FARGATE_SECURITY_GROUP_ID": fargate_security_group_id,
             "GEMINI_API_KEY_SECRET_ARN": secrets_arn,
         }
 

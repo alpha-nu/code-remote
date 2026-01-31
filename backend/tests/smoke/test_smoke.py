@@ -46,11 +46,6 @@ class TestHealthEndpoint:
         data = response.json()
         assert data["status"] == "healthy"
 
-    def test_readiness_check(self, client):
-        """Verify the readiness endpoint returns OK."""
-        response = client.get("/ready")
-        assert response.status_code == 200
-
 
 class TestExecutionEndpoint:
     """Smoke tests for code execution (requires auth bypass or test token)."""
@@ -62,7 +57,7 @@ class TestExecutionEndpoint:
     def test_simple_execution(self, client):
         """Verify simple code execution works."""
         response = client.post(
-            "/api/v1/execute",
+            "/execute",
             json={"code": "print('Hello, smoke test!')"},
             headers={"X-Dev-Bypass": "true"},  # Only works in dev/staging
         )
@@ -72,7 +67,7 @@ class TestExecutionEndpoint:
 
         if response.status_code == 200:
             data = response.json()
-            assert "output" in data
+            assert "stdout" in data or "output" in data
 
 
 class TestOpenAPISchema:

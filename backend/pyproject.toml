@@ -21,7 +21,7 @@ dependencies = [
     "google-genai>=1.0.0",
     "pyjwt[crypto]>=2.8.0",
     "mangum>=0.17.0",  # AWS Lambda adapter for ASGI
-    "boto3>=1.34.0",   # AWS SDK for Fargate integration
+    "boto3>=1.34.0",   # AWS SDK for Secrets Manager, Cognito, etc.
 ]
 
 [project.optional-dependencies]
@@ -63,4 +63,5 @@ dev = [
     "pytest>=9.0.2",
     "pytest-asyncio>=1.3.0",
     "pytest-cov>=7.0.0",
+    "ruff>=0.14.14",
 ]

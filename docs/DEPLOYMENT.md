@@ -49,11 +49,10 @@ Use the GitHub Actions UI to trigger a manual deployment:
 2. **Test** - Run backend and frontend tests
 3. **Infrastructure** - Deploy/update AWS resources with Pulumi
 4. **Build API Image** - Build and push Lambda container image to ECR
-5. **Build Executor Image** - Build and push Fargate executor image to ECR
-6. **Deploy Backend** - Update Lambda function with new image
-7. **Deploy Frontend** - Build React app, sync to S3, invalidate CloudFront
-8. **Smoke Tests** - Verify health endpoints and auth requirements
-9. **Summary** - Generate deployment report
+5. **Deploy Backend** - Update Lambda function with new image
+6. **Deploy Frontend** - Build React app, sync to S3, invalidate CloudFront
+7. **Smoke Tests** - Verify health endpoints and auth requirements
+8. **Summary** - Generate deployment report
 
 ## Required GitHub Secrets
 

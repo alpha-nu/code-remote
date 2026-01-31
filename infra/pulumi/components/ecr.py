@@ -1,8 +1,6 @@
 """ECR Component - Container Registry for Code Remote.
 
-Creates ECR repositories for:
-- API service container image
-- Executor (sandbox) container image
+Creates ECR repository for the API service container image.
 """
 
 import pulumi
@@ -10,7 +8,7 @@ import pulumi_aws as aws
 
 
 class ECRComponent(pulumi.ComponentResource):
-    """ECR repositories for container images."""
+    """ECR repository for container images."""
 
     def __init__(
         self,
@@ -33,18 +31,6 @@ class ECRComponent(pulumi.ComponentResource):
                 scan_on_push=True,
             ),
             tags={**self.tags, "Name": f"{name}-api"},
-            opts=pulumi.ResourceOptions(parent=self),
-        )
-
-        # Executor repository
-        self.executor_repository = aws.ecr.Repository(
-            f"{name}-executor",
-            name=f"code-remote-{environment}-executor",
-            image_tag_mutability="MUTABLE",
-            image_scanning_configuration=aws.ecr.RepositoryImageScanningConfigurationArgs(
-                scan_on_push=True,
-            ),
-            tags={**self.tags, "Name": f"{name}-executor"},
             opts=pulumi.ResourceOptions(parent=self),
         )
 
@@ -73,16 +59,8 @@ class ECRComponent(pulumi.ComponentResource):
             opts=pulumi.ResourceOptions(parent=self),
         )
 
-        aws.ecr.LifecyclePolicy(
-            f"{name}-executor-lifecycle",
-            repository=self.executor_repository.name,
-            policy=lifecycle_policy,
-            opts=pulumi.ResourceOptions(parent=self),
-        )
-
         self.register_outputs(
             {
                 "api_repository_url": self.api_repository.repository_url,
-                "executor_repository_url": self.executor_repository.repository_url,
             }
         )

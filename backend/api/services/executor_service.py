@@ -29,7 +29,7 @@ class ExecutorService:
     ) -> ExecutionResponse:
         """Execute Python code in a sandboxed environment.
 
-        In Lambda, uses Fargate tasks for execution.
+        In Lambda, uses in-process execution with restricted globals.
         Locally, uses subprocess-based execution.
 
         Args:
@@ -49,8 +49,7 @@ class ExecutorService:
                 error_type="ValidationError",
             )
 
-        # In Lambda, use in-process execution with sandboxing
-        # This is faster than Fargate (no cold start) but less isolated
+        # In Lambda, use in-process execution with restricted globals sandbox
         if is_lambda_environment():
             from api.services.lambda_executor import get_lambda_executor
 

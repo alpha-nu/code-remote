@@ -96,7 +96,6 @@ pulumi stack output
 | `public_subnet_ids` | Public subnet IDs |
 | `private_subnet_ids` | Private subnet IDs |
 | `ecr_api_repository_url` | ECR URL for API image |
-| `ecr_executor_repository_url` | ECR URL for executor image |
 | `cognito_user_pool_id` | Cognito User Pool ID |
 | `cognito_user_pool_client_id` | Cognito Client ID |
 

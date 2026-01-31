@@ -4,8 +4,7 @@ This module orchestrates all AWS infrastructure components for the
 Code Remote application using Pulumi with a serverless architecture.
 
 Architecture:
-- API: AWS Lambda + API Gateway (HTTP API v2)
-- Executor: AWS Fargate (ECS) for sandboxed code execution
+- API: AWS Lambda + API Gateway (HTTP API v2) with in-process code execution
 - Auth: AWS Cognito
 - Frontend: S3 + CloudFront CDN
 - Secrets: AWS Secrets Manager
@@ -15,7 +14,6 @@ import pulumi
 
 from components.cognito import CognitoComponent
 from components.ecr import ECRComponent
-from components.fargate_executor import FargateExecutorComponent
 from components.frontend import FrontendComponent
 from components.secrets import SecretsComponent
 from components.serverless_api import ServerlessAPIComponent
@@ -74,19 +72,6 @@ cognito = CognitoComponent(
 )
 
 # =============================================================================
-# Fargate Executor - Sandboxed Code Execution
-# =============================================================================
-executor = FargateExecutorComponent(
-    f"{environment}-executor",
-    environment=environment,
-    vpc_id=vpc.vpc.id,
-    subnet_ids=vpc.private_subnet_ids,
-    ecr_repository_url=ecr.executor_repository.repository_url,
-    image_tag="latest",
-    tags=common_tags,
-)
-
-# =============================================================================
 # Serverless API - Lambda + API Gateway
 # =============================================================================
 api = ServerlessAPIComponent(
@@ -98,10 +83,6 @@ api = ServerlessAPIComponent(
     cognito_user_pool_arn=cognito.user_pool.arn,
     cognito_user_pool_client_id=cognito.user_pool_client.id,
     secrets_arn=secrets.gemini_api_key.arn,
-    fargate_cluster_arn=executor.cluster.arn,
-    fargate_task_definition_arn=executor.task_definition.arn,
-    fargate_subnets=vpc.private_subnet_ids.apply(lambda ids: ",".join(ids)),
-    fargate_security_group_id=executor.security_group.id,
     image_tag="latest",
     env_vars={
         # Note: AWS_REGION is automatically set by Lambda runtime
@@ -134,7 +115,6 @@ pulumi.export("private_subnet_ids", vpc.private_subnet_ids)
 
 # ECR outputs
 pulumi.export("ecr_api_repository_url", ecr.api_repository.repository_url)
-pulumi.export("ecr_executor_repository_url", ecr.executor_repository.repository_url)
 
 # Secrets outputs (ARNs only, not values)
 pulumi.export("gemini_api_key_secret_arn", secrets.gemini_api_key.arn)
@@ -143,12 +123,6 @@ pulumi.export("gemini_api_key_secret_arn", secrets.gemini_api_key.arn)
 pulumi.export("cognito_user_pool_id", cognito.user_pool.id)
 pulumi.export("cognito_user_pool_client_id", cognito.user_pool_client.id)
 pulumi.export("cognito_user_pool_endpoint", cognito.user_pool.endpoint)
-
-# Executor outputs
-pulumi.export("executor_cluster_name", executor.cluster.name)
-pulumi.export("executor_cluster_arn", executor.cluster.arn)
-pulumi.export("executor_task_definition_arn", executor.task_definition.arn)
-pulumi.export("executor_security_group_id", executor.security_group.id)
 
 # API outputs
 pulumi.export("api_endpoint", api.api_endpoint)

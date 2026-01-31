@@ -76,12 +76,6 @@ class Settings(BaseSettings):
     cognito_client_id: str = ""
     cognito_region: str = ""  # Falls back to aws_region if not set
 
-    # Fargate Executor (for Lambda mode)
-    fargate_cluster_arn: str = ""
-    fargate_task_definition_arn: str = ""
-    fargate_subnets: str = ""  # Comma-separated subnet IDs
-    fargate_security_group_id: str = ""
-
     # Development settings (NEVER enable in production!)
     dev_auth_bypass: bool = False
 

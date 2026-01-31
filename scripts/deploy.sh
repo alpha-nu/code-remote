@@ -60,7 +60,6 @@ get_pulumi_outputs() {
 
     # Get outputs
     ECR_API_URL=$(pulumi stack output ecr_api_repository_url 2>/dev/null || echo "")
-    ECR_EXECUTOR_URL=$(pulumi stack output ecr_executor_repository_url 2>/dev/null || echo "")
     FRONTEND_BUCKET=$(pulumi stack output frontend_bucket_name 2>/dev/null || echo "")
     DISTRIBUTION_ID=$(pulumi stack output frontend_distribution_id 2>/dev/null || echo "")
     API_ENDPOINT=$(pulumi stack output api_endpoint 2>/dev/null || echo "")

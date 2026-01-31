@@ -50,7 +50,7 @@ jobs:
           fi
 
           echo "environment=$ENV" >> $GITHUB_OUTPUT
-          echo "stack=code-remote-$ENV" >> $GITHUB_OUTPUT
+          echo "stack=$ENV" >> $GITHUB_OUTPUT
           echo "should_deploy=true" >> $GITHUB_OUTPUT
 
           echo "### Deployment Configuration" >> $GITHUB_STEP_SUMMARY
@@ -58,7 +58,7 @@ jobs:
           echo "| Setting | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|---------|-------|" >> $GITHUB_STEP_SUMMARY
           echo "| Environment | $ENV |" >> $GITHUB_STEP_SUMMARY
-          echo "| Stack | code-remote-$ENV |" >> $GITHUB_STEP_SUMMARY
+          echo "| Stack | $ENV |" >> $GITHUB_STEP_SUMMARY
           echo "| Trigger | ${{ github.event_name }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Ref | ${{ github.ref }} |" >> $GITHUB_STEP_SUMMARY
 

@@ -7,6 +7,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toolbar } from './components/Toolbar';
 import { CodeEditor } from './components/CodeEditor';
 import { OutputPanel } from './components/OutputPanel';
+import { SnippetsPanel } from './components/SnippetsPanel';
 import { configureAmplify } from './config/amplify';
 import { useAuthStore } from './store/authStore';
 import type { ConnectionState } from './hooks/useWebSocket';
@@ -45,6 +46,7 @@ function AppContent() {
     <div className="app">
       <Toolbar onConnectionStateChange={setConnectionState} />
       <main className="main-content">
+        <SnippetsPanel />
         <div className="editor-pane">
           <CodeEditor connectionState={connectionState} />
         </div>

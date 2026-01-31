@@ -908,6 +908,336 @@ For projects that need strong CRUD with eventual graph capabilities:
 
 ---
 
+#### CDC/Events Synchronization Deep Dive
+
+**What is CDC (Change Data Capture)?**
+
+CDC captures row-level changes (INSERT, UPDATE, DELETE) from PostgreSQL and streams them to other systems. For the hybrid approach, we sync snippet data from PostgreSQL (source of truth) to Neo4j (graph layer).
+
+**Synchronization Architecture:**
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                     PostgreSQL → Neo4j Sync Options                             │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  Option A: AWS DMS (Database Migration Service)                                 │
+│  ─────────────────────────────────────────────────────────────────────────────  │
+│                                                                                 │
+│  ┌──────────────┐    ┌─────────────┐    ┌──────────────┐    ┌─────────────┐    │
+│  │   Aurora     │───▶│   AWS DMS   │───▶│   Kinesis    │───▶│   Lambda    │    │
+│  │  PostgreSQL  │    │  (CDC task) │    │   Stream     │    │  (writer)   │    │
+│  └──────────────┘    └─────────────┘    └──────────────┘    └──────┬──────┘    │
+│         │                                                          │           │
+│         │ logical replication                                      │ Cypher    │
+│         │ (wal2json)                                               ▼           │
+│         │                                                   ┌─────────────┐    │
+│         │                                                   │   Neo4j     │    │
+│         └─ Snapshots table ─────────────────────────────────│   AuraDB    │    │
+│                                                             └─────────────┘    │
+│                                                                                 │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  Option B: Application-Level Events (Simpler for MVP)                           │
+│  ─────────────────────────────────────────────────────────────────────────────  │
+│                                                                                 │
+│  ┌──────────────┐    ┌─────────────┐    ┌──────────────┐    ┌─────────────┐    │
+│  │   Lambda     │───▶│  EventBridge│───▶│   Lambda     │───▶│   Neo4j     │    │
+│  │  (API CRUD)  │    │  (event bus)│    │  (sync fn)   │    │   AuraDB    │    │
+│  └──────┬───────┘    └─────────────┘    └──────────────┘    └─────────────┘    │
+│         │                                                                       │
+│         │ writes                                                                │
+│         ▼                                                                       │
+│  ┌──────────────┐                                                               │
+│  │   Aurora     │                                                               │
+│  │  PostgreSQL  │                                                               │
+│  └──────────────┘                                                               │
+│                                                                                 │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  Option C: Debezium (Open Source CDC)                                           │
+│  ─────────────────────────────────────────────────────────────────────────────  │
+│                                                                                 │
+│  ┌──────────────┐    ┌─────────────┐    ┌──────────────┐    ┌─────────────┐    │
+│  │   Aurora     │───▶│  Debezium   │───▶│    Kafka     │───▶│   Kafka     │    │
+│  │  PostgreSQL  │    │  Connector  │    │   (MSK)      │    │  Consumer   │────│
+│  └──────────────┘    └─────────────┘    └──────────────┘    └─────────────┘    │
+│                                                                          │      │
+│                                                                          ▼      │
+│                                                                   ┌─────────┐   │
+│                                                                   │  Neo4j  │   │
+│                                                                   └─────────┘   │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Recommended: Option B (Application-Level Events)**
+
+For our scale and simplicity goals, application-level events via EventBridge is the best fit:
+
+```python
+# backend/api/services/snippet_service.py
+
+from backend.common.events import event_bus
+
+class SnippetService:
+    async def create_snippet(self, user_id: str, data: SnippetCreate) -> Snippet:
+        # 1. Write to PostgreSQL (source of truth)
+        snippet = await self.repo.create(user_id, data)
+        
+        # 2. Emit event for graph sync (async, non-blocking)
+        await event_bus.publish(
+            event_type="snippet.created",
+            payload={
+                "snippet_id": str(snippet.id),
+                "user_id": user_id,
+                "patterns": snippet.detected_patterns,  # LLM-extracted
+                "complexity": snippet.time_complexity,
+                "embedding": snippet.embedding.tolist(),
+            }
+        )
+        
+        return snippet
+    
+    async def update_snippet(self, snippet_id: str, data: SnippetUpdate) -> Snippet:
+        snippet = await self.repo.update(snippet_id, data)
+        await event_bus.publish("snippet.updated", {...})
+        return snippet
+    
+    async def delete_snippet(self, snippet_id: str) -> None:
+        await self.repo.delete(snippet_id)
+        await event_bus.publish("snippet.deleted", {"snippet_id": snippet_id})
+```
+
+**EventBridge Configuration (Pulumi):**
+
+```python
+# infra/pulumi/components/events.py
+
+import pulumi_aws as aws
+
+def create_snippet_event_bus(env: str):
+    # Custom event bus for snippet events
+    event_bus = aws.cloudwatch.EventBus(
+        f"{env}-snippet-events",
+        name=f"code-remote-{env}-snippets"
+    )
+    
+    # Rule to route snippet events to Neo4j sync Lambda
+    neo4j_sync_rule = aws.cloudwatch.EventRule(
+        f"{env}-neo4j-sync-rule",
+        event_bus_name=event_bus.name,
+        event_pattern=json.dumps({
+            "source": ["code-remote.snippets"],
+            "detail-type": ["snippet.created", "snippet.updated", "snippet.deleted"]
+        })
+    )
+    
+    # Target: Lambda function for Neo4j sync
+    aws.cloudwatch.EventTarget(
+        f"{env}-neo4j-sync-target",
+        rule=neo4j_sync_rule.name,
+        event_bus_name=event_bus.name,
+        arn=neo4j_sync_lambda.arn
+    )
+    
+    return event_bus
+```
+
+**Neo4j Sync Lambda:**
+
+```python
+# backend/api/handlers/neo4j_sync.py
+
+from neo4j import AsyncGraphDatabase
+
+async def handler(event, context):
+    """Process EventBridge events and sync to Neo4j."""
+    
+    driver = AsyncGraphDatabase.driver(
+        settings.NEO4J_URI,
+        auth=(settings.NEO4J_USER, settings.NEO4J_PASSWORD)
+    )
+    
+    async with driver.session() as session:
+        detail_type = event["detail-type"]
+        payload = event["detail"]
+        
+        if detail_type == "snippet.created":
+            await session.run("""
+                MERGE (u:User {id: $user_id})
+                CREATE (s:Snippet {
+                    id: $snippet_id,
+                    embedding: $embedding
+                })
+                CREATE (u)-[:OWNS]->(s)
+                
+                // Create pattern relationships
+                WITH s
+                UNWIND $patterns AS pattern_name
+                MERGE (p:Pattern {name: pattern_name})
+                CREATE (s)-[:USES]->(p)
+                
+                // Create complexity node
+                WITH s
+                MERGE (c:Complexity {notation: $complexity})
+                CREATE (s)-[:HAS_COMPLEXITY]->(c)
+            """, {
+                "user_id": payload["user_id"],
+                "snippet_id": payload["snippet_id"],
+                "embedding": payload["embedding"],
+                "patterns": payload.get("patterns", []),
+                "complexity": payload.get("complexity", "unknown")
+            })
+            
+        elif detail_type == "snippet.deleted":
+            await session.run("""
+                MATCH (s:Snippet {id: $snippet_id})
+                DETACH DELETE s
+            """, {"snippet_id": payload["snippet_id"]})
+            
+        elif detail_type == "snippet.updated":
+            # Update snippet properties and relationships
+            await session.run("""
+                MATCH (s:Snippet {id: $snippet_id})
+                SET s.embedding = $embedding
+                
+                // Update patterns (delete old, create new)
+                WITH s
+                OPTIONAL MATCH (s)-[r:USES]->(:Pattern)
+                DELETE r
+                
+                WITH s
+                UNWIND $patterns AS pattern_name
+                MERGE (p:Pattern {name: pattern_name})
+                CREATE (s)-[:USES]->(p)
+            """, payload)
+    
+    await driver.close()
+```
+
+**Similarity Computation (Async Job):**
+
+The `SIMILAR_TO` relationships between snippets can be computed periodically or on-demand:
+
+```python
+# backend/jobs/compute_similarity.py
+
+async def compute_snippet_similarities(user_id: str):
+    """Compute and store similarity relationships in Neo4j."""
+    
+    async with neo4j_driver.session() as session:
+        # Find similar snippets using vector index
+        await session.run("""
+            // For each snippet owned by user
+            MATCH (u:User {id: $user_id})-[:OWNS]->(s:Snippet)
+            WHERE s.embedding IS NOT NULL
+            
+            // Find similar snippets (vector search)
+            CALL db.index.vector.queryNodes(
+                'snippet-embeddings', 
+                5,  // top 5 similar
+                s.embedding
+            ) YIELD node AS similar, score
+            
+            // Don't link to self
+            WHERE similar.id <> s.id AND score > 0.8
+            
+            // Create or update similarity relationship
+            MERGE (s)-[r:SIMILAR_TO]->(similar)
+            SET r.score = score, r.computed_at = datetime()
+        """, {"user_id": user_id})
+```
+
+**Event Flow Diagram:**
+
+```
+User saves snippet
+        │
+        ▼
+┌───────────────────┐
+│  POST /snippets   │
+│  (Lambda/FastAPI) │
+└─────────┬─────────┘
+          │
+          ├──────────────────────────────┐
+          │                              │
+          ▼                              ▼
+┌─────────────────────┐      ┌─────────────────────┐
+│  PostgreSQL         │      │  EventBridge        │
+│  (INSERT snippet)   │      │  (emit event)       │
+└─────────────────────┘      └──────────┬──────────┘
+                                        │
+                                        ▼
+                             ┌─────────────────────┐
+                             │  Neo4j Sync Lambda  │
+                             │  (process event)    │
+                             └──────────┬──────────┘
+                                        │
+                                        ▼
+                             ┌─────────────────────┐
+                             │  Neo4j AuraDB       │
+                             │  (CREATE nodes,     │
+                             │   relationships)    │
+                             └─────────────────────┘
+```
+
+**Consistency Considerations:**
+
+| Concern | Solution |
+|---------|----------|
+| **Event ordering** | EventBridge preserves order per partition |
+| **Duplicate events** | Make Neo4j operations idempotent (MERGE) |
+| **Failed sync** | DLQ + retry with exponential backoff |
+| **Initial sync** | One-time bulk sync job on Neo4j addition |
+| **Data drift** | Periodic reconciliation job |
+
+**Reconciliation Job (Weekly):**
+
+```python
+# backend/jobs/reconcile_graph.py
+
+async def reconcile_postgres_neo4j():
+    """Ensure Neo4j graph matches PostgreSQL source of truth."""
+    
+    # Get all snippet IDs from PostgreSQL
+    pg_snippets = await pg_repo.get_all_snippet_ids()
+    
+    # Get all snippet IDs from Neo4j
+    async with neo4j_driver.session() as session:
+        result = await session.run("MATCH (s:Snippet) RETURN s.id AS id")
+        neo4j_snippets = {r["id"] async for r in result}
+    
+    # Find orphaned nodes in Neo4j (deleted in PG)
+    orphaned = neo4j_snippets - set(pg_snippets)
+    if orphaned:
+        await session.run(
+            "UNWIND $ids AS id MATCH (s:Snippet {id: id}) DETACH DELETE s",
+            {"ids": list(orphaned)}
+        )
+    
+    # Find missing nodes in Neo4j (need sync)
+    missing = set(pg_snippets) - neo4j_snippets
+    if missing:
+        for snippet_id in missing:
+            snippet = await pg_repo.get(snippet_id)
+            await sync_snippet_to_neo4j(snippet)
+```
+
+**Cost Estimate (with Neo4j sync):**
+
+| Component | Monthly Cost |
+|-----------|-------------|
+| Aurora PostgreSQL (0.5 ACU avg) | ~$45 |
+| EventBridge (1M events) | ~$1 |
+| Lambda (sync function) | ~$5 |
+| Neo4j AuraDB Free | $0 |
+| **Total** | **~$51/mo** |
+
+*Note: Neo4j AuraDB Free tier includes 200K nodes, 400K relationships - plenty for MVP*
+
+---
+
 ### Recommendation: **PostgreSQL + pgvector on Aurora Serverless v2**
 
 **Why:**

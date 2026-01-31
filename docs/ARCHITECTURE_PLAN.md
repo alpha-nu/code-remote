@@ -1334,3 +1334,654 @@ For semantic search, embeddings are generated when snippets are saved:
 | 9.7 | Frontend: Snippets UI | Save dialog, library view, search |
 
 **Status:** PLANNING - Awaiting approval
+
+---
+
+## Phase 10: Async Execution & Event-Driven Architecture (PLANNING)
+
+**Goal:** Replace synchronous execution with robust async job processing using SQS, enabling retries, better UX, and laying groundwork for future eventing needs.
+
+### Current Problem
+
+The current execution flow is **synchronous request-response**:
+
+```
+┌──────────┐     ┌─────────────┐     ┌─────────────┐     ┌───────────────────┐
+│ Frontend │────▶│ API Gateway │────▶│   Lambda    │────▶│ Execute (in-proc) │
+│          │◀────│             │◀────│  (Mangum)   │◀────│ or Fargate task   │
+└──────────┘     └─────────────┘     └─────────────┘     └───────────────────┘
+                        ▲                                         │
+                        │                                         │
+                        └─────── waits synchronously ─────────────┘
+```
+
+**Problems:**
+
+| Issue | Impact |
+|-------|--------|
+| **API Gateway timeout (29s)** | If execution + Fargate cold start > 29s → client gets 504 |
+| **Lambda timeout billing** | Lambda sits idle while polling Fargate |
+| **No retry on failures** | Transient errors fail the entire request |
+| **No backpressure** | Traffic spike = uncontrolled Fargate task explosion |
+| **Poor UX** | User stares at spinner with no progress feedback |
+| **No execution history** | Results lost after response sent |
+
+### Proposed Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                    Async Execution with SQS                                     │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  ┌──────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────────────┐ │
+│  │ Frontend │───▶│ POST /exec  │───▶│ SQS Queue   │───▶│  Worker Lambda      │ │
+│  │          │    │ (returns    │    │ (jobs)      │    │  (or Fargate)       │ │
+│  │          │    │  job_id)    │    │             │    │                     │ │
+│  └────┬─────┘    └─────────────┘    └─────────────┘    └──────────┬──────────┘ │
+│       │                                                           │            │
+│       │ poll or WebSocket                                         │ writes     │
+│       │                                                           ▼            │
+│       │         ┌─────────────┐    ┌───────────────────────────────────────┐   │
+│       └────────▶│ GET /status │◀───│  DynamoDB (jobs table)                │   │
+│                 │ or WS push  │    │  - job_id, status, created_at         │   │
+│                 └─────────────┘    │  - result (stdout, stderr, error)     │   │
+│                                    │  - TTL for auto-cleanup               │   │
+│                                    └───────────────────────────────────────┘   │
+│                                                                                 │
+│  ┌─────────────────────────────────────────────────────────────────────────┐   │
+│  │  Dead Letter Queue (DLQ)                                                │   │
+│  │  - Failed jobs after 3 retries                                          │   │
+│  │  - Alarm triggers on DLQ depth                                          │   │
+│  └─────────────────────────────────────────────────────────────────────────┘   │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Benefits
+
+| Benefit | Description |
+|---------|-------------|
+| **Decoupled** | API responds immediately with `job_id` (< 100ms), no timeout risk |
+| **Retries** | SQS handles retries with exponential backoff (3 attempts default) |
+| **DLQ** | Failed executions go to dead-letter queue for debugging/alerting |
+| **Throttling** | Control concurrency via Lambda reserved concurrency |
+| **Progress** | Can update status: `pending` → `running` → `completed` / `failed` |
+| **History** | Results stored in DynamoDB, queryable later |
+| **WebSockets** | Push results to frontend when ready (optional enhancement) |
+| **Reusable** | Same pattern for snippet sync, LLM analysis, etc. |
+
+### Data Model (DynamoDB)
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│  Jobs Table                                                                     │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  Partition Key: job_id (UUID)                                                   │
+│  Sort Key: (none - single item per job)                                         │
+│                                                                                 │
+│  Attributes:                                                                    │
+│  ┌─────────────────────────────────────────────────────────────────────────┐   │
+│  │  job_id:        UUID (PK)                                               │   │
+│  │  user_id:       string (Cognito sub, GSI for user's jobs)               │   │
+│  │  status:        enum (pending | running | completed | failed)           │   │
+│  │  code:          string (the submitted code)                             │   │
+│  │  timeout_seconds: number                                                │   │
+│  │                                                                         │   │
+│  │  # Set when running                                                     │   │
+│  │  started_at:    ISO timestamp                                           │   │
+│  │                                                                         │   │
+│  │  # Set when completed/failed                                            │   │
+│  │  completed_at:  ISO timestamp                                           │   │
+│  │  result: {                                                              │   │
+│  │    success:     boolean                                                 │   │
+│  │    stdout:      string                                                  │   │
+│  │    stderr:      string                                                  │   │
+│  │    error:       string | null                                           │   │
+│  │    error_type:  string | null                                           │   │
+│  │    execution_time_ms: number                                            │   │
+│  │    timed_out:   boolean                                                 │   │
+│  │  }                                                                      │   │
+│  │                                                                         │   │
+│  │  # Metadata                                                             │   │
+│  │  created_at:    ISO timestamp                                           │   │
+│  │  ttl:           Unix timestamp (auto-delete after 24h)                  │   │
+│  └─────────────────────────────────────────────────────────────────────────┘   │
+│                                                                                 │
+│  GSI: user_id-created_at-index (for listing user's recent jobs)                │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### API Changes
+
+**New Endpoints:**
+
+```python
+# POST /execute → Returns job_id immediately
+@router.post("/execute", response_model=JobSubmittedResponse)
+async def submit_execution(
+    request: ExecutionRequest,
+    user: User = Depends(get_current_user),
+    job_service: JobService = Depends(get_job_service),
+) -> JobSubmittedResponse:
+    """Submit code for async execution. Returns job_id to poll for results."""
+    job = await job_service.submit(
+        user_id=user.sub,
+        code=request.code,
+        timeout_seconds=request.timeout_seconds,
+    )
+    return JobSubmittedResponse(
+        job_id=job.job_id,
+        status="pending",
+        poll_url=f"/jobs/{job.job_id}",
+    )
+
+
+# GET /jobs/{job_id} → Poll for status/results
+@router.get("/jobs/{job_id}", response_model=JobStatusResponse)
+async def get_job_status(
+    job_id: str,
+    user: User = Depends(get_current_user),
+    job_service: JobService = Depends(get_job_service),
+) -> JobStatusResponse:
+    """Get the status and results of an execution job."""
+    job = await job_service.get(job_id, user_id=user.sub)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return JobStatusResponse(
+        job_id=job.job_id,
+        status=job.status,
+        result=job.result if job.status in ("completed", "failed") else None,
+        created_at=job.created_at,
+        started_at=job.started_at,
+        completed_at=job.completed_at,
+    )
+
+
+# GET /jobs → List user's recent jobs
+@router.get("/jobs", response_model=list[JobSummary])
+async def list_jobs(
+    user: User = Depends(get_current_user),
+    job_service: JobService = Depends(get_job_service),
+    limit: int = Query(default=10, le=50),
+) -> list[JobSummary]:
+    """List the user's recent execution jobs."""
+    return await job_service.list_for_user(user_id=user.sub, limit=limit)
+```
+
+**Response Models:**
+
+```python
+# api/schemas/jobs.py
+
+class JobSubmittedResponse(BaseModel):
+    job_id: str
+    status: Literal["pending"]
+    poll_url: str
+
+
+class JobResult(BaseModel):
+    success: bool
+    stdout: str | None = None
+    stderr: str | None = None
+    error: str | None = None
+    error_type: str | None = None
+    execution_time_ms: float | None = None
+    timed_out: bool = False
+
+
+class JobStatusResponse(BaseModel):
+    job_id: str
+    status: Literal["pending", "running", "completed", "failed"]
+    result: JobResult | None = None
+    created_at: datetime
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+
+
+class JobSummary(BaseModel):
+    job_id: str
+    status: str
+    created_at: datetime
+    execution_time_ms: float | None = None
+```
+
+### Job Service Implementation
+
+```python
+# backend/api/services/job_service.py
+
+import json
+import uuid
+from datetime import datetime, timedelta
+
+import boto3
+
+from api.schemas.jobs import JobResult, JobStatusResponse
+from common.config import settings
+
+
+class JobService:
+    """Service for managing async execution jobs."""
+
+    def __init__(self):
+        self.sqs = boto3.client("sqs", region_name=settings.aws_region)
+        self.dynamodb = boto3.resource("dynamodb", region_name=settings.aws_region)
+        self.jobs_table = self.dynamodb.Table(settings.jobs_table_name)
+        self.queue_url = settings.execution_queue_url
+
+    async def submit(
+        self,
+        user_id: str,
+        code: str,
+        timeout_seconds: float | None = None,
+    ) -> JobStatusResponse:
+        """Submit a new execution job."""
+        job_id = str(uuid.uuid4())
+        now = datetime.utcnow()
+        ttl = int((now + timedelta(hours=24)).timestamp())
+
+        # 1. Create job record in DynamoDB (pending)
+        item = {
+            "job_id": job_id,
+            "user_id": user_id,
+            "status": "pending",
+            "code": code,
+            "timeout_seconds": timeout_seconds or settings.execution_timeout_seconds,
+            "created_at": now.isoformat(),
+            "ttl": ttl,
+        }
+        self.jobs_table.put_item(Item=item)
+
+        # 2. Send message to SQS queue
+        self.sqs.send_message(
+            QueueUrl=self.queue_url,
+            MessageBody=json.dumps({
+                "job_id": job_id,
+                "user_id": user_id,
+                "code": code,
+                "timeout_seconds": item["timeout_seconds"],
+            }),
+            MessageGroupId=user_id,  # FIFO: preserve order per user
+            MessageDeduplicationId=job_id,
+        )
+
+        return JobStatusResponse(
+            job_id=job_id,
+            status="pending",
+            created_at=now,
+        )
+
+    async def get(self, job_id: str, user_id: str) -> JobStatusResponse | None:
+        """Get a job by ID, validating ownership."""
+        response = self.jobs_table.get_item(Key={"job_id": job_id})
+        item = response.get("Item")
+        
+        if not item or item.get("user_id") != user_id:
+            return None
+
+        return self._item_to_response(item)
+
+    async def update_status(
+        self,
+        job_id: str,
+        status: str,
+        result: JobResult | None = None,
+    ) -> None:
+        """Update job status (called by worker)."""
+        now = datetime.utcnow().isoformat()
+        
+        update_expr = "SET #status = :status"
+        expr_values = {":status": status}
+        expr_names = {"#status": "status"}
+
+        if status == "running":
+            update_expr += ", started_at = :started_at"
+            expr_values[":started_at"] = now
+        elif status in ("completed", "failed"):
+            update_expr += ", completed_at = :completed_at"
+            expr_values[":completed_at"] = now
+            if result:
+                update_expr += ", #result = :result"
+                expr_names["#result"] = "result"
+                expr_values[":result"] = result.model_dump()
+
+        self.jobs_table.update_item(
+            Key={"job_id": job_id},
+            UpdateExpression=update_expr,
+            ExpressionAttributeNames=expr_names,
+            ExpressionAttributeValues=expr_values,
+        )
+
+    def _item_to_response(self, item: dict) -> JobStatusResponse:
+        """Convert DynamoDB item to response model."""
+        result = None
+        if "result" in item:
+            result = JobResult(**item["result"])
+        
+        return JobStatusResponse(
+            job_id=item["job_id"],
+            status=item["status"],
+            result=result,
+            created_at=datetime.fromisoformat(item["created_at"]),
+            started_at=datetime.fromisoformat(item["started_at"]) if item.get("started_at") else None,
+            completed_at=datetime.fromisoformat(item["completed_at"]) if item.get("completed_at") else None,
+        )
+```
+
+### Worker Lambda (SQS Consumer)
+
+```python
+# backend/api/handlers/execution_worker.py
+
+"""
+SQS-triggered Lambda that processes execution jobs.
+
+This worker:
+1. Receives job from SQS queue
+2. Updates status to "running" in DynamoDB
+3. Executes the code (in-process or via Fargate)
+4. Updates status to "completed" or "failed" with results
+"""
+
+import json
+import logging
+
+from api.schemas.jobs import JobResult
+from api.services.job_service import JobService
+from api.services.lambda_executor import LambdaExecutor
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+
+job_service = JobService()
+executor = LambdaExecutor()
+
+
+def handler(event, context):
+    """Process SQS messages containing execution jobs."""
+    
+    for record in event.get("Records", []):
+        process_job(record)
+    
+    # Return success - failed messages will be retried by SQS
+    return {"statusCode": 200}
+
+
+def process_job(record: dict) -> None:
+    """Process a single execution job from SQS."""
+    try:
+        body = json.loads(record["body"])
+        job_id = body["job_id"]
+        code = body["code"]
+        timeout_seconds = body.get("timeout_seconds", 30)
+        
+        logger.info(f"Processing job {job_id}")
+        
+        # 1. Mark job as running
+        job_service.update_status(job_id, "running")
+        
+        # 2. Execute the code
+        result = executor.execute(code, timeout_seconds=timeout_seconds)
+        
+        # 3. Convert to JobResult
+        job_result = JobResult(
+            success=result.success,
+            stdout=result.stdout,
+            stderr=result.stderr,
+            error=result.error,
+            error_type=result.error_type,
+            execution_time_ms=result.execution_time_ms,
+            timed_out=result.timed_out,
+        )
+        
+        # 4. Update job as completed/failed
+        status = "completed" if result.success else "failed"
+        job_service.update_status(job_id, status, result=job_result)
+        
+        logger.info(f"Job {job_id} {status}")
+        
+    except Exception as e:
+        logger.error(f"Error processing job: {e}")
+        # Don't catch - let SQS retry
+        raise
+```
+
+### Infrastructure (Pulumi)
+
+```python
+# infra/pulumi/components/execution_queue.py
+
+import json
+import pulumi
+import pulumi_aws as aws
+
+
+def create_execution_queue(env: str, worker_lambda: aws.lambda_.Function):
+    """Create SQS queue for async execution jobs."""
+    
+    # Dead Letter Queue for failed jobs
+    dlq = aws.sqs.Queue(
+        f"{env}-execution-dlq",
+        name=f"code-remote-{env}-execution-dlq.fifo",
+        fifo_queue=True,
+        message_retention_seconds=1209600,  # 14 days
+    )
+    
+    # Main execution queue
+    queue = aws.sqs.Queue(
+        f"{env}-execution-queue",
+        name=f"code-remote-{env}-execution.fifo",
+        fifo_queue=True,
+        content_based_deduplication=False,
+        visibility_timeout_seconds=60,  # Must be > Lambda timeout
+        receive_wait_time_seconds=20,  # Long polling
+        redrive_policy=dlq.arn.apply(lambda arn: json.dumps({
+            "deadLetterTargetArn": arn,
+            "maxReceiveCount": 3,  # 3 retries before DLQ
+        })),
+    )
+    
+    # Lambda trigger from SQS
+    aws.lambda_.EventSourceMapping(
+        f"{env}-execution-trigger",
+        event_source_arn=queue.arn,
+        function_name=worker_lambda.name,
+        batch_size=1,  # Process one job at a time
+        enabled=True,
+    )
+    
+    # CloudWatch alarm for DLQ depth
+    aws.cloudwatch.MetricAlarm(
+        f"{env}-dlq-alarm",
+        alarm_name=f"code-remote-{env}-execution-dlq-depth",
+        comparison_operator="GreaterThanThreshold",
+        evaluation_periods=1,
+        metric_name="ApproximateNumberOfMessagesVisible",
+        namespace="AWS/SQS",
+        period=300,
+        statistic="Sum",
+        threshold=0,
+        alarm_description="Execution jobs failing and going to DLQ",
+        dimensions={"QueueName": dlq.name},
+        # alarm_actions=[sns_topic.arn],  # Add SNS for notifications
+    )
+    
+    return queue, dlq
+
+
+def create_jobs_table(env: str):
+    """Create DynamoDB table for job status tracking."""
+    
+    table = aws.dynamodb.Table(
+        f"{env}-jobs-table",
+        name=f"code-remote-{env}-jobs",
+        billing_mode="PAY_PER_REQUEST",  # Serverless pricing
+        hash_key="job_id",
+        attributes=[
+            {"name": "job_id", "type": "S"},
+            {"name": "user_id", "type": "S"},
+            {"name": "created_at", "type": "S"},
+        ],
+        global_secondary_indexes=[
+            {
+                "name": "user_id-created_at-index",
+                "hash_key": "user_id",
+                "range_key": "created_at",
+                "projection_type": "ALL",
+            },
+        ],
+        ttl={
+            "attribute_name": "ttl",
+            "enabled": True,
+        },
+    )
+    
+    return table
+```
+
+### Frontend Changes
+
+```typescript
+// frontend/src/hooks/useExecution.ts
+
+interface Job {
+  job_id: string;
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  result?: {
+    success: boolean;
+    stdout?: string;
+    stderr?: string;
+    error?: string;
+    execution_time_ms?: number;
+    timed_out: boolean;
+  };
+}
+
+export function useExecution() {
+  const [job, setJob] = useState<Job | null>(null);
+  const [isPolling, setIsPolling] = useState(false);
+
+  const execute = async (code: string, timeout?: number) => {
+    // 1. Submit job
+    const response = await api.post('/execute', { code, timeout_seconds: timeout });
+    const { job_id } = response.data;
+    
+    setJob({ job_id, status: 'pending' });
+    setIsPolling(true);
+    
+    // 2. Poll for results
+    const pollInterval = setInterval(async () => {
+      const statusResponse = await api.get(`/jobs/${job_id}`);
+      const updatedJob = statusResponse.data;
+      
+      setJob(updatedJob);
+      
+      if (updatedJob.status === 'completed' || updatedJob.status === 'failed') {
+        clearInterval(pollInterval);
+        setIsPolling(false);
+      }
+    }, 1000); // Poll every second
+    
+    // Cleanup on unmount
+    return () => clearInterval(pollInterval);
+  };
+
+  return { job, isPolling, execute };
+}
+```
+
+### Event Flow Summary
+
+```
+┌───────────────────────────────────────────────────────────────────────────────┐
+│                        Async Execution Flow                                   │
+├───────────────────────────────────────────────────────────────────────────────┤
+│                                                                               │
+│  1. User clicks "Run"                                                         │
+│     │                                                                         │
+│     ▼                                                                         │
+│  2. POST /execute                                                             │
+│     │  ├─▶ Create job in DynamoDB (status: pending)                          │
+│     │  └─▶ Send message to SQS queue                                         │
+│     │                                                                         │
+│     ▼                                                                         │
+│  3. Return { job_id, status: "pending" } immediately (< 100ms)               │
+│     │                                                                         │
+│     ▼                                                                         │
+│  4. Frontend starts polling GET /jobs/{job_id}                               │
+│     │                                                                         │
+│     │  ┌─────────────────────────────────────────────────────────────────┐   │
+│     │  │  Meanwhile, in the background...                                │   │
+│     │  │                                                                 │   │
+│     │  │  5. SQS triggers Worker Lambda                                  │   │
+│     │  │     │                                                           │   │
+│     │  │     ▼                                                           │   │
+│     │  │  6. Worker updates job status to "running"                      │   │
+│     │  │     │                                                           │   │
+│     │  │     ▼                                                           │   │
+│     │  │  7. Worker executes code (sandbox)                              │   │
+│     │  │     │                                                           │   │
+│     │  │     ▼                                                           │   │
+│     │  │  8. Worker updates job status to "completed" with result        │   │
+│     │  └─────────────────────────────────────────────────────────────────┘   │
+│     │                                                                         │
+│     ▼                                                                         │
+│  9. Frontend poll receives { status: "completed", result: {...} }            │
+│     │                                                                         │
+│     ▼                                                                         │
+│  10. Display results to user                                                  │
+│                                                                               │
+└───────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Migration Strategy
+
+Since execution is currently synchronous, we need a migration path:
+
+| Phase | Action |
+|-------|--------|
+| **10.1** | Deploy DynamoDB table + SQS queue (Pulumi) |
+| **10.2** | Deploy worker Lambda with SQS trigger |
+| **10.3** | Add new `/execute` (async) + `/jobs/{id}` endpoints |
+| **10.4** | Update frontend to use async flow |
+| **10.5** | Keep old sync endpoint as `/execute/sync` (deprecated) |
+| **10.6** | Remove sync endpoint after verification |
+
+### Cost Estimate
+
+| Component | Monthly Cost (10K executions) |
+|-----------|-------------------------------|
+| SQS FIFO | ~$0.50 (10K messages) |
+| DynamoDB | ~$1.00 (on-demand, with TTL) |
+| Worker Lambda | ~$2.00 (10K invocations × 30s avg) |
+| CloudWatch | ~$0.30 (alarms) |
+| **Total** | **~$4/mo** |
+
+### Future Enhancements
+
+| Enhancement | Description |
+|-------------|-------------|
+| **WebSockets** | Push results instead of polling (API Gateway WebSocket) |
+| **Progress streaming** | Stream stdout in real-time via WebSocket |
+| **Priority queues** | Separate queues for free/paid users |
+| **Batch execution** | Run multiple code blocks in sequence |
+| **Scheduled execution** | Cron-like scheduled jobs |
+
+### Implementation Steps (Phase 10)
+
+| Step | Task | Details |
+|------|------|---------|
+| 10.1 | Pulumi: SQS FIFO queue + DLQ | With CloudWatch alarm |
+| 10.2 | Pulumi: DynamoDB jobs table | With TTL and GSI |
+| 10.3 | Worker Lambda | SQS consumer with executor |
+| 10.4 | JobService | Submit, get, update_status |
+| 10.5 | New API endpoints | POST /execute, GET /jobs/{id}, GET /jobs |
+| 10.6 | Frontend: useExecution hook | Submit + poll pattern |
+| 10.7 | Frontend: Job status UI | Pending/running/completed states |
+| 10.8 | Remove sync execution | Deprecate old endpoint |
+
+**Status:** PLANNING - Awaiting approval
+
+**Dependencies:** None (can be done before or after Phase 9)

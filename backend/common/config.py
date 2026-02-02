@@ -57,6 +57,10 @@ class Settings(BaseSettings):
     execution_timeout_seconds: int = 30
     max_code_size_bytes: int = 10240  # 10KB
 
+    # Extra allowed imports (environment-specific, comma-separated)
+    # Example: "numpy,pandas,scipy" to allow data science libs in dev
+    extra_allowed_imports: str = ""
+
     # Redis (for queue) - optional in serverless mode
     redis_url: str = ""
 
@@ -92,7 +96,13 @@ class Settings(BaseSettings):
     def resolved_cognito_region(self) -> str:
         """Get Cognito region, falling back to aws_region if not set."""
         return self.cognito_region or self.aws_region
-        return ""
+
+    @property
+    def extra_allowed_imports_set(self) -> set[str]:
+        """Parse extra_allowed_imports into a set of module names."""
+        if not self.extra_allowed_imports:
+            return set()
+        return {m.strip() for m in self.extra_allowed_imports.split(",") if m.strip()}
 
 
 @lru_cache

@@ -231,8 +231,19 @@ body {
 }
 
 .connection-status .status-text {
-  color: #22c55e;
   font-weight: 500;
+}
+
+.connection-status .status-text:not(.connecting):not(.error) {
+  color: #22c55e;
+}
+
+.connection-status .status-text.connecting {
+  color: #f59e0b;
+}
+
+.connection-status .status-text.error {
+  color: #ef4444;
 }
 
 @keyframes pulse {

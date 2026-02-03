@@ -196,6 +196,8 @@ export function Toolbar() {
             >
               <span className="status-dot" />
               {connectionState === 'connected' && <span className="status-text">Live</span>}
+              {connectionState === 'connecting' && <span className="status-text connecting">Connecting</span>}
+              {connectionState === 'error' && <span className="status-text error">Offline</span>}
             </span>
           )}
         </div>

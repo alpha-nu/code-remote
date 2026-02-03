@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from api.routers import analysis, execution, health
+from api.routers import analysis, execution, health, websocket
 from common.config import settings
 
 
@@ -41,3 +41,4 @@ app.add_middleware(
 app.include_router(health.router, tags=["Health"])
 app.include_router(execution.router, tags=["Execution"])
 app.include_router(analysis.router, tags=["Analysis"])
+app.include_router(websocket.router, tags=["WebSocket"])

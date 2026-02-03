@@ -7,6 +7,17 @@ export interface ExecutionRequest {
   timeout_seconds?: number;
 }
 
+export interface AsyncExecutionRequest {
+  code: string;
+  connection_id: string;
+  timeout_seconds?: number;
+}
+
+export interface JobSubmittedResponse {
+  job_id: string;
+  status: string;
+}
+
 export interface ExecutionResponse {
   success: boolean;
   stdout: string;

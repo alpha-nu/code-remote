@@ -3,10 +3,12 @@
  */
 
 import { useEditorStore } from '../store/editorStore';
-import { executeCode } from '../api/client';
+import { executeCode, executeCodeAsync } from '../api/client';
 import { UserMenu } from './UserMenu';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useAuthStore } from '../store/authStore';
+import { useWebSocket, type ExecutionResultMessage, type WebSocketMessage } from '../hooks';
+import type { ExecutionResponse } from '../types/execution';
 
 export function Toolbar() {
   const {
@@ -20,6 +22,56 @@ export function Toolbar() {
   } = useEditorStore();
 
   const { isAuthenticated } = useAuthStore();
+
+  // WebSocket connection for async execution
+  const {
+    connectionState,
+    connectionId,
+    addMessageHandler,
+  } = useWebSocket({ autoConnect: true });
+
+  // Track pending job for async execution
+  const [pendingJobId, setPendingJobId] = useState<string | null>(null);
+
+  // Handle incoming execution results via WebSocket
+  const handleMessage = useCallback((message: WebSocketMessage) => {
+    if (message.type !== 'execution_result') return;
+
+    const resultMsg = message as unknown as ExecutionResultMessage;
+    if (resultMsg.job_id !== pendingJobId) return;
+
+    // Convert to ExecutionResponse format
+    const result: ExecutionResponse = {
+      success: resultMsg.success,
+      stdout: resultMsg.stdout,
+      stderr: resultMsg.stderr,
+      error: resultMsg.error,
+      error_type: resultMsg.error_type,
+      execution_time_ms: resultMsg.execution_time_ms,
+      timed_out: resultMsg.timed_out,
+      security_violations: resultMsg.security_violations.map((v) => ({
+        type: 'security',
+        message: v.message,
+        line: v.line,
+        column: v.column,
+      })),
+    };
+
+    setResult(result);
+    setIsExecuting(false);
+    setPendingJobId(null);
+
+    // Auto-analyze after successful execution
+    if (autoAnalyze && result.success) {
+      useEditorStore.getState().analyze();
+    }
+  }, [pendingJobId, setResult, setIsExecuting, autoAnalyze]);
+
+  // Register message handler
+  useEffect(() => {
+    const cleanup = addMessageHandler(handleMessage);
+    return cleanup;
+  }, [addMessageHandler, handleMessage]);
 
   const [isLight, setIsLight] = useState(() =>
     typeof document !== 'undefined' && document.documentElement.classList.contains('light-theme'),
@@ -47,17 +99,31 @@ export function Toolbar() {
     setIsExecuting(true);
     setResult(null);
     setApiError(null);
+    setPendingJobId(null);
 
     try {
-      const result = await executeCode({
-        code,
-        timeout_seconds: timeoutSeconds,
-      });
-      setResult(result);
+      // Use async execution if WebSocket connected, else fall back to sync
+      if (connectionState === 'connected' && connectionId) {
+        const response = await executeCodeAsync({
+          code,
+          connection_id: connectionId,
+          timeout_seconds: timeoutSeconds,
+        });
+        setPendingJobId(response.job_id);
+        // Result will come via WebSocket
+      } else {
+        // Fall back to sync execution
+        const result = await executeCode({
+          code,
+          timeout_seconds: timeoutSeconds,
+        });
+        setResult(result);
+        setIsExecuting(false);
 
-      // Auto-analyze after successful execution (use store helper)
-      if (autoAnalyze && result.success) {
-        await (useEditorStore.getState().analyze());
+        // Auto-analyze after successful execution
+        if (autoAnalyze && result.success) {
+          await useEditorStore.getState().analyze();
+        }
       }
     } catch (error) {
       if (error instanceof Error) {
@@ -65,7 +131,6 @@ export function Toolbar() {
       } else {
         setApiError('An unexpected error occurred');
       }
-    } finally {
       setIsExecuting(false);
     }
   };
@@ -106,7 +171,7 @@ export function Toolbar() {
             aria-label="Run code"
           >
             {isExecuting ? (
-              'Running...'
+              pendingJobId ? 'Queued...' : 'Running...'
             ) : (
               <>
                 <span className="btn-icon">▶</span>
@@ -116,6 +181,23 @@ export function Toolbar() {
           </button>
 
           <span className="keyboard-hint">Ctrl+Enter</span>
+
+          {/* Connection status indicator */}
+          {isAuthenticated && (
+            <span
+              className={`connection-status ${connectionState}`}
+              title={
+                connectionState === 'connected'
+                  ? 'Real-time updates enabled'
+                  : connectionState === 'connecting'
+                  ? 'Connecting to real-time updates...'
+                  : 'Real-time updates unavailable (using fallback)'
+              }
+            >
+              <span className="status-dot" />
+              {connectionState === 'connected' && <span className="status-text">Live</span>}
+            </span>
+          )}
         </div>
       </div>
 

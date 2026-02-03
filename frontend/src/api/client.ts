@@ -7,8 +7,10 @@ import type {
   AnalyzeRequest,
   AnalyzeResponse,
   AnalysisStatus,
+  AsyncExecutionRequest,
   ExecutionRequest,
   ExecutionResponse,
+  JobSubmittedResponse,
 } from '../types/execution';
 import { useAuthStore } from '../store/authStore';
 
@@ -110,6 +112,15 @@ apiClient.interceptors.response.use(
  */
 export async function executeCode(request: ExecutionRequest): Promise<ExecutionResponse> {
   const response = await apiClient.post<ExecutionResponse>('/execute', request);
+  return response.data;
+}
+
+/**
+ * Submit code for async execution via WebSocket.
+ * Results will be delivered via WebSocket to the connection_id.
+ */
+export async function executeCodeAsync(request: AsyncExecutionRequest): Promise<JobSubmittedResponse> {
+  const response = await apiClient.post<JobSubmittedResponse>('/execute/async', request);
   return response.data;
 }
 

@@ -197,6 +197,53 @@ body {
   border-radius: 3px;
 }
 
+/* Connection status indicator */
+.connection-status {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  padding: 2px 8px;
+  border-radius: 3px;
+  background-color: var(--bg-tertiary);
+}
+
+.connection-status .status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: #666;
+}
+
+.connection-status.connected .status-dot {
+  background-color: #22c55e;
+  box-shadow: 0 0 4px #22c55e;
+}
+
+.connection-status.connecting .status-dot {
+  background-color: #f59e0b;
+  animation: pulse 1s ease-in-out infinite;
+}
+
+.connection-status.error .status-dot {
+  background-color: #ef4444;
+}
+
+.connection-status .status-text {
+  color: #22c55e;
+  font-weight: 500;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
 .toolbar-right {
   display: flex;
   align-items: center;

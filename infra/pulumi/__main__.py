@@ -5,6 +5,9 @@ Code Remote application using Pulumi with a serverless architecture.
 
 Architecture:
 - API: AWS Lambda + API Gateway (HTTP API v2) with in-process code execution
+- WebSocket: API Gateway WebSocket for real-time updates
+- Queue: SQS FIFO for async job processing
+- Worker: Lambda consumer for code execution
 - Auth: AWS Cognito
 - Frontend: S3 + CloudFront CDN
 - Secrets: AWS Secrets Manager
@@ -15,9 +18,12 @@ import pulumi
 from components.cognito import CognitoComponent
 from components.ecr import ECRComponent
 from components.frontend import FrontendComponent
+from components.messaging import MessagingComponent
 from components.secrets import SecretsComponent
 from components.serverless_api import ServerlessAPIComponent
 from components.vpc import VPCComponent
+from components.websocket import WebSocketComponent
+from components.worker import WorkerComponent
 
 # Get configuration
 config = pulumi.Config()
@@ -72,6 +78,15 @@ cognito = CognitoComponent(
 )
 
 # =============================================================================
+# Messaging - SQS Queues (before API so queue URL can be passed)
+# =============================================================================
+messaging = MessagingComponent(
+    f"{environment}-messaging",
+    environment=environment,
+    tags=common_tags,
+)
+
+# =============================================================================
 # Serverless API - Lambda + API Gateway
 # =============================================================================
 api = ServerlessAPIComponent(
@@ -83,6 +98,7 @@ api = ServerlessAPIComponent(
     cognito_user_pool_arn=cognito.user_pool.arn,
     cognito_user_pool_client_id=cognito.user_pool_client.id,
     secrets_arn=secrets.gemini_api_key.arn,
+    queue_url=messaging.queue.url,
     image_tag="latest",
     env_vars={
         # Note: AWS_REGION is automatically set by Lambda runtime
@@ -92,6 +108,32 @@ api = ServerlessAPIComponent(
         "DEBUG": "false" if environment == "prod" else "true",
         "CORS_ORIGINS": '["*"]',  # API Gateway handles CORS
     },
+    tags=common_tags,
+)
+
+# =============================================================================
+# WebSocket - Real-time Communication
+# =============================================================================
+websocket = WebSocketComponent(
+    f"{environment}-websocket",
+    environment=environment,
+    tags=common_tags,
+)
+
+# =============================================================================
+# Worker - SQS Consumer for Code Execution
+# =============================================================================
+worker = WorkerComponent(
+    f"{environment}-worker",
+    environment=environment,
+    vpc_id=vpc.vpc.id,
+    subnet_ids=vpc.private_subnet_ids,
+    ecr_repository_url=ecr.api_repository.repository_url,
+    queue_arn=messaging.queue.arn,
+    websocket_api_id=websocket.api.id,
+    websocket_endpoint=websocket.management_endpoint,
+    secrets_arn=secrets.gemini_api_key.arn,
+    image_tag="latest",
     tags=common_tags,
 )
 
@@ -127,6 +169,17 @@ pulumi.export("cognito_user_pool_endpoint", cognito.user_pool.endpoint)
 # API outputs
 pulumi.export("api_endpoint", api.api_endpoint)
 pulumi.export("api_function_name", api.function.name)
+
+# Messaging outputs
+pulumi.export("execution_queue_url", messaging.queue.url)
+pulumi.export("execution_queue_arn", messaging.queue.arn)
+
+# WebSocket outputs
+pulumi.export("websocket_endpoint", websocket.endpoint)
+pulumi.export("websocket_api_id", websocket.api.id)
+
+# Worker outputs
+pulumi.export("worker_function_name", worker.function.name)
 
 # Frontend outputs
 pulumi.export("frontend_bucket_name", frontend.bucket.bucket)

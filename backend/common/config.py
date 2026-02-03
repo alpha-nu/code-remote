@@ -75,6 +75,10 @@ class Settings(BaseSettings):
     # AWS Configuration
     aws_region: str = "us-east-1"  # Default AWS region for all services
 
+    # Async Execution (SQS + WebSocket)
+    execution_queue_url: str = ""  # SQS FIFO queue for async execution jobs
+    websocket_endpoint: str = ""  # WebSocket API Gateway endpoint (wss://...)
+
     # AWS Cognito Authentication
     cognito_user_pool_id: str = ""
     cognito_client_id: str = ""

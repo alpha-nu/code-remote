@@ -1,5 +1,9 @@
 """Unit tests for the execution endpoint."""
 
+from unittest.mock import MagicMock, patch
+
+import pytest
+
 
 class TestExecuteEndpoint:
     """Tests for POST /execute endpoint."""
@@ -241,3 +245,95 @@ print(decoded["name"], decoded["value"])
         assert data["success"] is True
         assert "test" in data["stdout"]
         assert "42" in data["stdout"]
+
+
+class TestAsyncExecuteEndpoint:
+    """Tests for POST /execute/async endpoint."""
+
+    def test_async_execute_returns_503_without_queue(self, authenticated_client):
+        """Test that async execute returns 503 when queue not configured."""
+        response = authenticated_client.post(
+            "/execute/async",
+            json={
+                "code": 'print("hello")',
+                "connection_id": "test-connection-123",
+            },
+        )
+        assert response.status_code == 503
+        assert "queue not configured" in response.json()["detail"]
+
+    @pytest.mark.skip(reason="Requires integration test setup with actual SQS mocking")
+    def test_async_execute_queues_job(self, monkeypatch):
+        """Test that async execute queues job successfully."""
+        # Set environment before importing
+        import os
+
+        os.environ["EXECUTION_QUEUE_URL"] = (
+            "https://sqs.us-east-1.amazonaws.com/123456789/test-queue.fifo"
+        )
+        os.environ["DEV_AUTH_BYPASS"] = "true"
+
+        # Clear cached settings
+        from common import config
+
+        config.get_settings.cache_clear()
+
+        from fastapi.testclient import TestClient
+
+        from api.main import app
+
+        client = TestClient(app)
+
+        # Mock SQS client
+        mock_sqs = MagicMock()
+        with patch("api.routers.execution.get_sqs_client", return_value=mock_sqs):
+            response = client.post(
+                "/execute/async",
+                json={
+                    "code": 'print("hello")',
+                    "connection_id": "test-connection-123",
+                },
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "queued"
+        assert "job_id" in data
+        assert len(data["job_id"]) == 36  # UUID format
+
+        # Verify SQS was called
+        mock_sqs.send_message.assert_called_once()
+
+        # Cleanup
+        del os.environ["EXECUTION_QUEUE_URL"]
+        config.get_settings.cache_clear()
+
+    def test_async_execute_missing_connection_id(self, authenticated_client):
+        """Test that missing connection_id is rejected."""
+        response = authenticated_client.post(
+            "/execute/async",
+            json={"code": 'print("hello")'},
+        )
+        assert response.status_code == 422
+
+    def test_async_execute_empty_connection_id(self, authenticated_client):
+        """Test that empty connection_id is rejected."""
+        response = authenticated_client.post(
+            "/execute/async",
+            json={
+                "code": 'print("hello")',
+                "connection_id": "",
+            },
+        )
+        assert response.status_code == 422
+
+    def test_async_execute_unauthenticated_returns_401(self, client):
+        """Test that unauthenticated request returns 401."""
+        response = client.post(
+            "/execute/async",
+            json={
+                "code": 'print("hello")',
+                "connection_id": "test-connection-123",
+            },
+        )
+        assert response.status_code == 401

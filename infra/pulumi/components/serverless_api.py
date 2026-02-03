@@ -18,6 +18,7 @@ class ServerlessAPIComponent(pulumi.ComponentResource):
         cognito_user_pool_arn: pulumi.Input[str],
         cognito_user_pool_client_id: pulumi.Input[str],
         secrets_arn: pulumi.Input[str],
+        queue_url: pulumi.Input[str] | None = None,
         image_tag: str = "latest",
         env_vars: dict | None = None,
         tags: dict | None = None,
@@ -103,6 +104,34 @@ class ServerlessAPIComponent(pulumi.ComponentResource):
             opts=pulumi.ResourceOptions(parent=self),
         )
 
+        # SQS access policy (for sending execution jobs)
+        if queue_url:
+            # Extract ARN from URL pattern
+            sqs_policy = aws.iam.Policy(
+                f"{name}-sqs-policy",
+                policy=json.dumps(
+                    {
+                        "Version": "2012-10-17",
+                        "Statement": [
+                            {
+                                "Effect": "Allow",
+                                "Action": ["sqs:SendMessage"],
+                                "Resource": "*",  # Will be scoped by queue URL in code
+                            }
+                        ],
+                    }
+                ),
+                tags=self.tags,
+                opts=pulumi.ResourceOptions(parent=self),
+            )
+
+            aws.iam.RolePolicyAttachment(
+                f"{name}-sqs-attach",
+                role=self.role.name,
+                policy_arn=sqs_policy.arn,
+                opts=pulumi.ResourceOptions(parent=self),
+            )
+
         # CloudWatch Logs
         self.log_group = aws.cloudwatch.LogGroup(
             f"{name}-logs",
@@ -118,6 +147,10 @@ class ServerlessAPIComponent(pulumi.ComponentResource):
             "ENVIRONMENT": environment,
             "GEMINI_API_KEY_SECRET_ARN": secrets_arn,
         }
+
+        # Add queue URL if provided
+        if queue_url:
+            lambda_env_vars["EXECUTION_QUEUE_URL"] = queue_url
 
         # Lambda Function (Container image based)
         self.function = aws.lambda_.Function(

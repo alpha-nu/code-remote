@@ -20,6 +20,36 @@ class ExecutionRequest(BaseModel):
     )
 
 
+class AsyncExecutionRequest(BaseModel):
+    """Request to execute Python code asynchronously with WebSocket callback."""
+
+    code: str = Field(
+        ...,
+        min_length=1,
+        max_length=10240,
+        description="Python code to execute (max 10KB)",
+    )
+    connection_id: str = Field(
+        ...,
+        min_length=1,
+        max_length=256,
+        description="WebSocket connection ID for result delivery",
+    )
+    timeout_seconds: float = Field(
+        default=30.0,
+        gt=0,
+        le=30.0,
+        description="Maximum execution time in seconds (max 30s)",
+    )
+
+
+class JobSubmittedResponse(BaseModel):
+    """Response when an async job is submitted."""
+
+    job_id: str = Field(..., description="Unique job identifier")
+    status: str = Field(default="queued", description="Job status")
+
+
 class SecurityViolationResponse(BaseModel):
     """A security violation found in the code."""
 

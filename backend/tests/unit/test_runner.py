@@ -310,3 +310,108 @@ raise ValueError("test error")
         assert not result.success
         assert result.error_type == "ValueError"
         assert "test error" in result.error
+
+
+class TestRestrictedModulesInExecution:
+    """Tests for restricted modules accessed through the executor."""
+
+    def test_time_sleep_blocked_in_execution(self):
+        """Test that time.sleep() raises SecurityError when executed."""
+        code = """
+import time
+time.sleep(1)
+"""
+        result = execute_code(code)
+        assert not result.success
+        assert result.error_type == "SecurityError"
+        assert "time.sleep()" in result.error
+
+    def test_time_functions_work_in_execution(self):
+        """Test that safe time functions work when executed."""
+        code = """
+import time
+t = time.time()
+print(f"Time is a float: {isinstance(t, float)}")
+"""
+        result = execute_code(code)
+        assert result.success
+        assert "Time is a float: True" in result.stdout
+
+    def test_random_randbytes_limit_enforced(self):
+        """Test that random.randbytes limit is enforced."""
+        code = """
+import random
+# Try to allocate more than 1MB
+data = random.randbytes(2 * 1024 * 1024)
+"""
+        result = execute_code(code)
+        assert not result.success
+        assert result.error_type == "SecurityError"
+        assert "exceeds limit" in result.error
+
+    def test_random_normal_usage_works(self):
+        """Test that normal random usage works."""
+        code = """
+import random
+random.seed(42)
+print(random.randint(1, 100))
+print(len(random.choices([1,2,3], k=10)))
+"""
+        result = execute_code(code)
+        assert result.success
+        assert "82" in result.stdout  # Deterministic with seed 42
+        assert "10" in result.stdout
+
+    def test_functools_lru_cache_unbounded_blocked(self):
+        """Test that unbounded lru_cache is blocked."""
+        code = """
+from functools import lru_cache
+
+@lru_cache(maxsize=None)
+def fib(n):
+    return n if n < 2 else fib(n-1) + fib(n-2)
+
+print(fib(10))
+"""
+        result = execute_code(code)
+        assert not result.success
+        assert result.error_type == "SecurityError"
+        assert "maxsize" in result.error
+
+    def test_functools_lru_cache_bounded_works(self):
+        """Test that bounded lru_cache works."""
+        code = """
+from functools import lru_cache
+
+@lru_cache(maxsize=100)
+def fib(n):
+    return n if n < 2 else fib(n-1) + fib(n-2)
+
+print(fib(10))
+"""
+        result = execute_code(code)
+        assert result.success
+        assert "55" in result.stdout
+
+    def test_re_works_normally(self):
+        """Test that re module works for normal patterns."""
+        code = """
+import re
+result = re.findall(r'\\d+', 'a1b2c3')
+print(result)
+"""
+        result = execute_code(code)
+        assert result.success
+        assert "['1', '2', '3']" in result.stdout
+
+    def test_decimal_works_normally(self):
+        """Test that decimal module works for normal usage."""
+        code = """
+from decimal import Decimal
+d1 = Decimal('1.1')
+d2 = Decimal('2.2')
+print(d1 + d2)
+"""
+        result = execute_code(code)
+        assert result.success
+        assert "3.3" in result.stdout

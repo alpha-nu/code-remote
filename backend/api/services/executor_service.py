@@ -59,7 +59,11 @@ class ExecutorService:
         # Local development: use subprocess-based execution
         from executor import ExecutionResult, execute_code
 
-        result: ExecutionResult = execute_code(code, timeout_seconds=timeout)
+        result: ExecutionResult = execute_code(
+            code,
+            timeout_seconds=timeout,
+            extra_modules=settings.extra_allowed_imports_set,
+        )
 
         # Convert to response model
         return ExecutionResponse(

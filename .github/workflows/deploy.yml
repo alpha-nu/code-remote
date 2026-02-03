@@ -120,6 +120,7 @@ jobs:
       frontend_url: ${{ steps.outputs.outputs.frontend_url }}
       cognito_user_pool_id: ${{ steps.outputs.outputs.cognito_user_pool_id }}
       cognito_client_id: ${{ steps.outputs.outputs.cognito_client_id }}
+      websocket_endpoint: ${{ steps.outputs.outputs.websocket_endpoint }}
     steps:
       - uses: actions/checkout@v4
 
@@ -183,6 +184,7 @@ jobs:
           echo "frontend_url=$(pulumi stack output frontend_url)" >> $GITHUB_OUTPUT
           echo "cognito_user_pool_id=$(pulumi stack output cognito_user_pool_id)" >> $GITHUB_OUTPUT
           echo "cognito_client_id=$(pulumi stack output cognito_user_pool_client_id)" >> $GITHUB_OUTPUT
+          echo "websocket_endpoint=$(pulumi stack output websocket_endpoint)" >> $GITHUB_OUTPUT
 
   # ============================================================
   # Build: Build and push Docker images
@@ -314,12 +316,14 @@ jobs:
           VITE_COGNITO_USER_POOL_ID: ${{ needs.infrastructure.outputs.cognito_user_pool_id }}
           VITE_COGNITO_CLIENT_ID: ${{ needs.infrastructure.outputs.cognito_client_id }}
           VITE_COGNITO_REGION: ${{ env.AWS_REGION }}
+          VITE_WEBSOCKET_URL: ${{ needs.infrastructure.outputs.websocket_endpoint }}
         run: |
           cat > .env.production << EOF
           VITE_API_URL=${VITE_API_URL}
           VITE_COGNITO_USER_POOL_ID=${VITE_COGNITO_USER_POOL_ID}
           VITE_COGNITO_CLIENT_ID=${VITE_COGNITO_CLIENT_ID}
           VITE_COGNITO_REGION=${VITE_COGNITO_REGION}
+          VITE_WEBSOCKET_URL=${VITE_WEBSOCKET_URL}
           EOF
           echo "Created .env.production:"
           cat .env.production

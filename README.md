@@ -1,4 +1,18 @@
-# Code Remote
+<div align="center">
+<img src="frontend/public/favicon.svg" width="100" height="100" alt="Code Remote Logo">
+
+```
+   ██████╗ ██████╗ ██████╗ ███████╗    ██████╗ ███████╗███╗   ███╗ ██████╗ ████████╗███████╗
+  ██╔════╝██╔═══██╗██╔══██╗██╔════╝    ██╔══██╗██╔════╝████╗ ████║██╔═══██╗╚══██╔══╝██╔════╝
+  ██║     ██║   ██║██║  ██║█████╗      ██████╔╝█████╗  ██╔████╔██║██║   ██║   ██║   █████╗  
+  ██║     ██║   ██║██║  ██║██╔══╝      ██╔══██╗██╔══╝  ██║╚██╔╝██║██║   ██║   ██║   ██╔══╝  
+  ╚██████╗╚██████╔╝██████╔╝███████╗    ██║  ██║███████╗██║ ╚═╝ ██║╚██████╔╝   ██║   ███████╗
+   ╚═════╝ ╚═════╝ ╚═════╝ ╚══════╝    ╚═╝  ╚═╝╚══════╝╚═╝     ╚═╝ ╚═════╝    ╚═╝   ╚══════╝
+```
+**Secure, Cloud-Native Remote Code Execution Platform**
+</div>
+
+---
 
 A secure, cloud-native remote code execution platform that enables users to write Python code in a browser-based editor, execute it in an isolated sandbox, and receive AI-powered complexity analysis.
 

@@ -121,6 +121,7 @@ jobs:
       cognito_user_pool_id: ${{ steps.outputs.outputs.cognito_user_pool_id }}
       cognito_client_id: ${{ steps.outputs.outputs.cognito_client_id }}
       websocket_endpoint: ${{ steps.outputs.outputs.websocket_endpoint }}
+      migration_function_name: ${{ steps.outputs.outputs.migration_function_name }}
     steps:
       - uses: actions/checkout@v4
 
@@ -185,6 +186,7 @@ jobs:
           echo "cognito_user_pool_id=$(pulumi stack output cognito_user_pool_id)" >> $GITHUB_OUTPUT
           echo "cognito_client_id=$(pulumi stack output cognito_user_pool_client_id)" >> $GITHUB_OUTPUT
           echo "websocket_endpoint=$(pulumi stack output websocket_endpoint)" >> $GITHUB_OUTPUT
+          echo "migration_function_name=$(pulumi stack output migration_function_name)" >> $GITHUB_OUTPUT
 
   # ============================================================
   # Build: Build and push Docker images
@@ -269,6 +271,53 @@ jobs:
             --region ${{ env.AWS_REGION }}
 
           echo "Lambda function updated successfully"
+
+      - name: Update Migration Lambda
+        env:
+          FUNCTION_NAME: ${{ needs.infrastructure.outputs.migration_function_name }}
+          IMAGE_URI: ${{ needs.build-api.outputs.image_uri }}
+        run: |
+          echo "Updating Migration Lambda: $FUNCTION_NAME"
+          echo "With image: $IMAGE_URI"
+
+          aws lambda update-function-code \
+            --function-name "$FUNCTION_NAME" \
+            --image-uri "$IMAGE_URI" \
+            --region ${{ env.AWS_REGION }}
+
+          aws lambda wait function-updated \
+            --function-name "$FUNCTION_NAME" \
+            --region ${{ env.AWS_REGION }}
+
+          echo "Migration Lambda updated successfully"
+
+      - name: Run database migrations
+        env:
+          FUNCTION_NAME: ${{ needs.infrastructure.outputs.migration_function_name }}
+        run: |
+          echo "Running database migrations..."
+
+          # Invoke migration Lambda and capture response
+          RESPONSE=$(aws lambda invoke \
+            --function-name "$FUNCTION_NAME" \
+            --payload '{}' \
+            --region ${{ env.AWS_REGION }} \
+            --cli-binary-format raw-in-base64-out \
+            /tmp/migration-response.json 2>&1)
+
+          echo "Lambda invoke response: $RESPONSE"
+          echo "Migration output:"
+          cat /tmp/migration-response.json
+
+          # Check if migration succeeded
+          STATUS_CODE=$(jq -r '.statusCode' /tmp/migration-response.json)
+          if [ "$STATUS_CODE" = "200" ]; then
+            echo "✅ Database migrations completed successfully!"
+          else
+            echo "❌ Database migrations failed!"
+            jq -r '.body' /tmp/migration-response.json | jq .
+            exit 1
+          fi
 
       - name: Verify deployment
         env:

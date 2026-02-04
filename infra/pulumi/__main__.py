@@ -20,6 +20,7 @@ from components.database import DatabaseComponent
 from components.ecr import ECRComponent
 from components.frontend import FrontendComponent
 from components.messaging import MessagingComponent
+from components.migration import MigrationComponent
 from components.secrets import SecretsComponent
 from components.serverless_api import ServerlessAPIComponent
 from components.vpc import VPCComponent
@@ -184,9 +185,23 @@ pulumi.export("cognito_user_pool_endpoint", cognito.user_pool.endpoint)
 pulumi.export("database_endpoint", database.endpoint)
 pulumi.export("database_connection_secret_arn", database.connection_secret.arn)
 
+# Migration Lambda - runs Alembic migrations during deployment
+migration = MigrationComponent(
+    f"{environment}-migration",
+    environment=environment,
+    vpc_id=vpc.vpc.id,
+    subnet_ids=vpc.private_subnet_ids,
+    ecr_repository_url=ecr.api_repository.repository_url,
+    database_secret_arn=database.connection_secret.arn,
+    database_security_group_id=database.security_group.id,
+    image_tag="latest",
+    tags=common_tags,
+)
+
 # API outputs
 pulumi.export("api_endpoint", api.api_endpoint)
 pulumi.export("api_function_name", api.function.name)
+pulumi.export("migration_function_name", migration.function.name)
 
 # Messaging outputs
 pulumi.export("execution_queue_url", messaging.queue.url)

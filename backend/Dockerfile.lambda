@@ -20,6 +20,8 @@ COPY api/ ./api/
 COPY common/ ./common/
 COPY analyzer/ ./analyzer/
 COPY executor/ ./executor/
+COPY alembic/ ./alembic/
+COPY alembic.ini ./
 
 # Set the Lambda handler
 # Format: module.function

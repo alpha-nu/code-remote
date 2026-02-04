@@ -250,8 +250,12 @@ print(decoded["name"], decoded["value"])
 class TestAsyncExecuteEndpoint:
     """Tests for POST /execute/async endpoint."""
 
-    def test_async_execute_returns_503_without_queue(self, authenticated_client):
-        """Test that async execute returns 503 when queue not configured."""
+    def test_async_execute_local_fallback_without_queue(self, authenticated_client):
+        """Test that async execute uses local fallback when queue not configured.
+
+        In local development (no SQS), the endpoint should still accept the request
+        and execute via background task, returning a job_id with 'queued' status.
+        """
         response = authenticated_client.post(
             "/execute/async",
             json={
@@ -259,8 +263,11 @@ class TestAsyncExecuteEndpoint:
                 "connection_id": "test-connection-123",
             },
         )
-        assert response.status_code == 503
-        assert "queue not configured" in response.json()["detail"]
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "queued"
+        assert "job_id" in data
+        assert len(data["job_id"]) == 36  # UUID format
 
     @pytest.mark.skip(reason="Requires integration test setup with actual SQS mocking")
     def test_async_execute_queues_job(self, monkeypatch):

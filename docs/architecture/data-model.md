@@ -2,7 +2,15 @@
 
 ## Overview
 
-Code Remote uses DynamoDB for job tracking and WebSocket connection management. Future phases will add Aurora PostgreSQL for persistent code snippets with vector search.
+Code Remote uses a hybrid data architecture:
+
+| Store | Purpose | Phase |
+|-------|---------|-------|
+| **DynamoDB** | WebSocket connections (stateless) | 10 |
+| **Aurora PostgreSQL** | User data, snippet CRUD (source of truth) | 9.1 |
+| **Neo4j AuraDB** | Vector embeddings, semantic search, patterns | 9.2+ |
+
+The PostgreSQL → Neo4j sync uses EventBridge CDC (Change Data Capture).
 
 ## DynamoDB Tables
 
@@ -233,7 +241,7 @@ CREATE TABLE users (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Snippets
+-- Snippets (source of truth for CRUD)
 CREATE TABLE snippets (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID REFERENCES users(id) ON DELETE CASCADE,
@@ -251,16 +259,46 @@ CREATE TABLE snippets (
     -- Metadata
     is_starred BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
     
-    -- Vector for semantic search (Gemini: 768 dims)
-    embedding vector(768)
+    -- NOTE: No embedding column - vectors stored in Neo4j
 );
 
 -- Indexes
 CREATE INDEX idx_snippets_user_id ON snippets(user_id);
 CREATE INDEX idx_snippets_starred ON snippets(user_id, is_starred) 
     WHERE is_starred = TRUE;
-CREATE INDEX idx_snippets_embedding ON snippets 
-    USING ivfflat (embedding vector_cosine_ops);
 ```
+
+## Future: Neo4j Graph Schema (Phase 9.2+)
+
+Vector search and pattern relationships stored in Neo4j AuraDB:
+
+```cypher
+// Node types
+(:User {id: UUID, cognito_sub: String})
+(:Snippet {id: UUID, embedding: [Float]})  // 768-dim Gemini embeddings
+(:Pattern {name: String})                   // "recursion", "memoization", etc.
+
+// Relationships
+(:User)-[:OWNS]->(:Snippet)
+(:User)-[:STARRED {at: DateTime}]->(:Snippet)
+(:Snippet)-[:SIMILAR_TO {score: Float}]->(:Snippet)  // computed from embeddings
+(:Snippet)-[:USES]->(:Pattern)                       // LLM-extracted patterns
+
+// Vector index for semantic search
+CREATE VECTOR INDEX snippet_embeddings FOR (s:Snippet) ON s.embedding
+OPTIONS {indexConfig: {`vector.dimensions`: 768, `vector.similarity_function`: 'cosine'}}
+```
+
+### CDC Sync (PostgreSQL → Neo4j)
+
+Events flow through EventBridge when snippets are created/updated/deleted:
+
+```
+PostgreSQL (CRUD) ──► EventBridge ──► Sync Lambda ──► Neo4j
+```
+
+- `snippet.created` → Create Snippet node, OWNS relationship
+- `snippet.updated` → Update embedding, recompute SIMILAR_TO
+- `snippet.deleted` → DETACH DELETE Snippet node

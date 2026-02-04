@@ -21,8 +21,7 @@ docs/
 │   └── infrastructure.md        # AWS/Pulumi infrastructure details
 │
 └── phases/                      # Implementation phase details
-    ├── README.md                # Phase progress summary
-    └── phase-10-realtime.md     # Async execution & WebSockets
+    └── README.md                # Phase progress & implementation details
 ```
 
 ## Quick Links
@@ -31,7 +30,7 @@ docs/
 |----------|-------------|
 | [Architecture Overview](architecture/overview.md) | System design, tech stack, component overview |
 | [Security Model](architecture/security.md) | Sandbox security, import restrictions, resource limits |
-| [Phase 10: Real-Time](phases/phase-10-realtime.md) | WebSocket-based async execution (current focus) |
+| [Phase Progress](phases/README.md) | Implementation phases, current: Phase 9 |
 | [Deployment Guide](DEPLOYMENT.md) | How to deploy to AWS |
 | [Release Strategy](release-strategy.md) | Versioning, tagging, and release workflows |
 
@@ -40,8 +39,8 @@ docs/
 | Phase | Name | Status |
 |-------|------|--------|
 | 1-8 | Foundation through Security | ✅ Complete |
-| 9 | Persistence & Code Snippets | 📋 Planning |
-| **10** | **Real-Time Async Execution** | **🚀 Ready to Implement** |
+| **9** | **Persistence (PostgreSQL + Neo4j)** | **🔄 In Progress** |
+| 10 | Real-Time Async Execution | ✅ Complete |
 
 ## Technology Stack
 
@@ -51,7 +50,7 @@ docs/
 | Backend | FastAPI + AWS Lambda (Mangum) |
 | Auth | AWS Cognito |
 | Queue | AWS SQS FIFO |
-| Database | DynamoDB (jobs), Aurora PostgreSQL (future) |
+| Database | Aurora PostgreSQL (CRUD) + Neo4j AuraDB (search) |
 | Real-time | API Gateway WebSocket |
 | LLM | Google Gemini API |
 | IaC | Pulumi (Python) |

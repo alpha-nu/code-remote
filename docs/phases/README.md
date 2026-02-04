@@ -8,7 +8,7 @@ This directory contains detailed documentation for each development phase.
 |-------|------|--------|-------------|
 | 1-7 | Core Foundation | ✅ Complete | Authentication, execution, analysis |
 | 8 | CI/CD | ✅ Complete | GitHub Actions, automated deployment |
-| 9 | Persistence | 🔲 Planned | Code snippets, Aurora PostgreSQL |
+| 9 | Persistence | � In Progress | PostgreSQL + Neo4j hybrid |
 | 10 | Real-Time Async | ✅ Complete | WebSocket, SQS, async execution |
 | 11 | Kubernetes | 🔲 Planned | Self-hosted execution cluster |
 
@@ -18,8 +18,13 @@ This directory contains detailed documentation for each development phase.
 - See commit history and architecture docs for details on phases 1-8
 - Phase 10 implementation details below
 
+### In Progress
+- **Phase 9: Persistence** - Hybrid architecture with PostgreSQL (CRUD) + Neo4j (Vector Search)
+  - Phase 9.1: PostgreSQL Foundation (current)
+  - Phase 9.2: Neo4j + CDC sync (upcoming)
+  - Phase 9.3: Vector search (upcoming)
+
 ### Upcoming
-- Phase 9: Persistence (TBD) - Code snippets with semantic search
 - Phase 11: Kubernetes execution
 
 ## Technology Evolution
@@ -34,8 +39,9 @@ Phase 10:  + WebSocket API Gateway
            + Worker Lambda
            + Real-time result push
      ↓
-Phase 9:   + Aurora PostgreSQL (snippets)
-           + pgvector (semantic search)
+Phase 9:   + Aurora PostgreSQL (CRUD, source of truth)
+           + Neo4j AuraDB (Vector search, patterns)
+           + EventBridge CDC (PG → Neo4j sync)
      ↓
 Phase 11:  + EKS Cluster
            + gVisor (runsc)

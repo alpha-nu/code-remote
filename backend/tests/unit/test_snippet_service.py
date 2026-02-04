@@ -40,6 +40,8 @@ def sample_snippet():
         description="A test snippet",
         execution_count=0,
         is_starred=False,
+        time_complexity=None,
+        space_complexity=None,
     )
     snippet.created_at = datetime.now(UTC)
     snippet.updated_at = datetime.now(UTC)

@@ -135,6 +135,8 @@ class SnippetService:
                 Snippet.description,
                 Snippet.execution_count,
                 Snippet.is_starred,
+                Snippet.time_complexity,
+                Snippet.space_complexity,
                 Snippet.last_execution_at,
                 Snippet.created_at,
                 Snippet.updated_at,

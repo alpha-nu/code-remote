@@ -56,6 +56,8 @@ def mock_snippet(mock_db_user):
         description="A test snippet",
         execution_count=0,
         is_starred=False,
+        time_complexity=None,
+        space_complexity=None,
     )
     snippet.created_at = datetime.now(UTC)
     snippet.updated_at = datetime.now(UTC)
@@ -109,6 +111,8 @@ class TestCreateSnippet:
                 description="Test description",
                 execution_count=0,
                 is_starred=False,
+                time_complexity=None,
+                space_complexity=None,
             )
             created_snippet.created_at = datetime.now(UTC)
             created_snippet.updated_at = datetime.now(UTC)
@@ -143,6 +147,8 @@ class TestCreateSnippet:
                 description=None,
                 execution_count=0,
                 is_starred=False,
+                time_complexity=None,
+                space_complexity=None,
             )
             created_snippet.created_at = datetime.now(UTC)
             created_snippet.updated_at = datetime.now(UTC)
@@ -201,6 +207,8 @@ class TestListSnippets:
                 "description": mock_snippet.description,
                 "execution_count": mock_snippet.execution_count,
                 "is_starred": mock_snippet.is_starred,
+                "time_complexity": mock_snippet.time_complexity,
+                "space_complexity": mock_snippet.space_complexity,
                 "last_execution_at": mock_snippet.last_execution_at,
                 "created_at": mock_snippet.created_at,
                 "updated_at": mock_snippet.updated_at,

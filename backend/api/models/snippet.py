@@ -71,6 +71,16 @@ class Snippet(Base, TimestampMixin):
         nullable=False,
         default=False,
     )
+    time_complexity: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
+        comment="Time complexity from analysis (e.g., O(n), O(n²))",
+    )
+    space_complexity: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
+        comment="Space complexity from analysis (e.g., O(1), O(n))",
+    )
 
     # Composite index for efficient user listing with starred-first ordering
     # Uses string column names since updated_at comes from TimestampMixin

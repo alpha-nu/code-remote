@@ -37,6 +37,8 @@ class SnippetSummary(BaseModel):
     description: str | None
     execution_count: int
     is_starred: bool
+    time_complexity: str | None = Field(None, description="Time complexity (e.g., O(n))")
+    space_complexity: str | None = Field(None, description="Space complexity (e.g., O(1))")
     last_execution_at: datetime | None
     created_at: datetime
     updated_at: datetime
@@ -54,6 +56,8 @@ class SnippetResponse(BaseModel):
     description: str | None
     execution_count: int
     is_starred: bool
+    time_complexity: str | None = Field(None, description="Time complexity (e.g., O(n))")
+    space_complexity: str | None = Field(None, description="Space complexity (e.g., O(1))")
     last_execution_at: datetime | None
     created_at: datetime
     updated_at: datetime

@@ -7,7 +7,7 @@ Phase 9.2 will add vector embeddings via pgvector extension.
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, String, Text, desc
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -65,6 +65,22 @@ class Snippet(Base, TimestampMixin):
     execution_count: Mapped[int] = mapped_column(
         nullable=False,
         default=0,
+    )
+    is_starred: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+    )
+
+    # Composite index for efficient user listing with starred-first ordering
+    # Uses string column names since updated_at comes from TimestampMixin
+    __table_args__ = (
+        Index(
+            "ix_snippets_user_starred_updated",
+            "user_id",
+            desc("is_starred"),
+            desc("updated_at"),
+        ),
     )
 
     # Relationships

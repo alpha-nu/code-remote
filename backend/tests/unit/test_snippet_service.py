@@ -39,6 +39,7 @@ def sample_snippet():
         language="python",
         description="A test snippet",
         execution_count=0,
+        is_starred=False,
     )
     snippet.created_at = datetime.now(UTC)
     snippet.updated_at = datetime.now(UTC)

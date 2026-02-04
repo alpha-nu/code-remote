@@ -76,6 +76,7 @@ async def create_snippet(
         title=request.title,
         language=request.language,
         description=request.description,
+        is_starred=request.is_starred,
     )
     return SnippetResponse.model_validate(snippet)
 
@@ -194,6 +195,7 @@ async def update_snippet(
         title=request.title,
         language=request.language,
         description=request.description,
+        is_starred=request.is_starred,
     )
 
     if snippet is None:

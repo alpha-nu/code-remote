@@ -33,6 +33,7 @@ class SnippetService:
         title: str | None = None,
         language: str = "python",
         description: str | None = None,
+        is_starred: bool = False,
     ) -> Snippet:
         """Create a new snippet.
 
@@ -42,6 +43,7 @@ class SnippetService:
             title: Optional title
             language: Programming language (default: python)
             description: Optional description
+            is_starred: Whether snippet is starred (default: False)
 
         Returns:
             The created Snippet
@@ -52,6 +54,7 @@ class SnippetService:
             title=title,
             language=language,
             description=description,
+            is_starred=is_starred,
         )
         self.db.add(snippet)
         await self.db.flush()
@@ -94,12 +97,12 @@ class SnippetService:
             offset: Number to skip (default: 0)
 
         Returns:
-            List of Snippets, ordered by updated_at descending
+            List of Snippets, ordered by starred first then updated_at descending
         """
         query = (
             select(Snippet)
             .where(Snippet.user_id == user_id)
-            .order_by(Snippet.updated_at.desc())
+            .order_by(Snippet.is_starred.desc(), Snippet.updated_at.desc())
             .limit(limit)
             .offset(offset)
         )
@@ -120,7 +123,7 @@ class SnippetService:
             offset: Number to skip (default: 0)
 
         Returns:
-            List of Snippets with code deferred, ordered by updated_at descending
+            List of Snippets with code deferred, ordered by starred first then updated_at descending
         """
         # Select all columns except 'code' for efficiency
         query = (
@@ -131,12 +134,13 @@ class SnippetService:
                 Snippet.language,
                 Snippet.description,
                 Snippet.execution_count,
+                Snippet.is_starred,
                 Snippet.last_execution_at,
                 Snippet.created_at,
                 Snippet.updated_at,
             )
             .where(Snippet.user_id == user_id)
-            .order_by(Snippet.updated_at.desc())
+            .order_by(Snippet.is_starred.desc(), Snippet.updated_at.desc())
             .limit(limit)
             .offset(offset)
         )
@@ -151,6 +155,7 @@ class SnippetService:
         title: str | None = None,
         language: str | None = None,
         description: str | None = None,
+        is_starred: bool | None = None,
     ) -> Snippet | None:
         """Update an existing snippet.
 
@@ -161,6 +166,7 @@ class SnippetService:
             title: New title (if changing)
             language: New language (if changing)
             description: New description (if changing)
+            is_starred: New starred status (if changing)
 
         Returns:
             The updated Snippet if found and owned by user, None otherwise
@@ -177,6 +183,8 @@ class SnippetService:
             snippet.language = language
         if description is not None:
             snippet.description = description
+        if is_starred is not None:
+            snippet.is_starred = is_starred
 
         await self.db.flush()
         await self.db.refresh(snippet)

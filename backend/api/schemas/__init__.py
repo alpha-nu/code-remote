@@ -6,6 +6,13 @@ from api.schemas.execution import (
     ExecutionResponse,
     SecurityViolationResponse,
 )
+from api.schemas.snippet import (
+    SnippetCreate,
+    SnippetDeleteResponse,
+    SnippetListResponse,
+    SnippetResponse,
+    SnippetUpdate,
+)
 
 __all__ = [
     "AnalyzeRequest",
@@ -13,4 +20,9 @@ __all__ = [
     "ExecutionRequest",
     "ExecutionResponse",
     "SecurityViolationResponse",
+    "SnippetCreate",
+    "SnippetDeleteResponse",
+    "SnippetListResponse",
+    "SnippetResponse",
+    "SnippetUpdate",
 ]

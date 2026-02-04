@@ -17,7 +17,7 @@ os.environ.setdefault("CORS_ORIGINS", '["http://localhost:3000"]')
 os.environ.setdefault("EXECUTION_TIMEOUT_SECONDS", "30")
 os.environ.setdefault("MAX_CODE_SIZE_BYTES", "10240")
 os.environ.setdefault("REDIS_URL", "redis://localhost:6379")
-os.environ.setdefault("DATABASE_URL", "postgresql://test:test@localhost:5432/testdb")
+os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://test:test@localhost:5432/testdb")
 os.environ.setdefault("GEMINI_API_KEY", "test-api-key-for-testing")
 os.environ.setdefault("COGNITO_USER_POOL_ID", "us-east-1_TestPool")
 os.environ.setdefault("COGNITO_CLIENT_ID", "test-client-id")
@@ -79,7 +79,7 @@ def mock_env_vars():
         "EXECUTION_TIMEOUT_SECONDS": "30",
         "MAX_CODE_SIZE_BYTES": "10240",
         "REDIS_URL": "redis://localhost:6379",
-        "DATABASE_URL": "postgresql://test:test@localhost:5432/testdb",
+        "DATABASE_URL": "postgresql+asyncpg://test:test@localhost:5432/testdb",
         "GEMINI_API_KEY": "test-api-key",
         "COGNITO_USER_POOL_ID": "us-east-1_TestPool",
         "COGNITO_CLIENT_ID": "test-client-id",

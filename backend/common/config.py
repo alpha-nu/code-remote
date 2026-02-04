@@ -66,6 +66,7 @@ class Settings(BaseSettings):
 
     # Database - optional in serverless mode
     database_url: str = ""
+    database_secret_arn: str = ""  # AWS Secrets Manager ARN for DB connection
 
     # Gemini LLM (API key only - no GCP project required)
     gemini_api_key: str = ""

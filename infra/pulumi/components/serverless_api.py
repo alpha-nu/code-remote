@@ -19,6 +19,7 @@ class ServerlessAPIComponent(pulumi.ComponentResource):
         cognito_user_pool_client_id: pulumi.Input[str],
         secrets_arn: pulumi.Input[str],
         queue_url: pulumi.Input[str] | None = None,
+        database_security_group_id: pulumi.Input[str] | None = None,
         image_tag: str = "latest",
         env_vars: dict | None = None,
         tags: dict | None = None,
@@ -28,6 +29,7 @@ class ServerlessAPIComponent(pulumi.ComponentResource):
 
         self.tags = tags or {}
         base_env_vars = env_vars or {}
+        self.database_security_group_id = database_security_group_id
 
         # Security Group for Lambda in VPC
         self.security_group = aws.ec2.SecurityGroup(
@@ -46,6 +48,20 @@ class ServerlessAPIComponent(pulumi.ComponentResource):
             tags=self.tags,
             opts=pulumi.ResourceOptions(parent=self),
         )
+
+        # Allow Lambda to connect to database if database SG provided
+        if database_security_group_id:
+            aws.ec2.SecurityGroupRule(
+                f"{name}-to-db",
+                type="ingress",
+                from_port=5432,
+                to_port=5432,
+                protocol="tcp",
+                security_group_id=database_security_group_id,
+                source_security_group_id=self.security_group.id,
+                description="Allow Lambda to connect to Aurora PostgreSQL",
+                opts=pulumi.ResourceOptions(parent=self),
+            )
 
         # IAM Role for Lambda
         self.role = aws.iam.Role(
@@ -74,7 +90,8 @@ class ServerlessAPIComponent(pulumi.ComponentResource):
             opts=pulumi.ResourceOptions(parent=self),
         )
 
-        # Secrets Manager access policy
+        # Secrets Manager access policy (Gemini API key + Database connection)
+        # Use broader resource pattern to allow all code-remote secrets
         secrets_policy = aws.iam.Policy(
             f"{name}-secrets-policy",
             policy=pulumi.Output.all(secrets_arn).apply(
@@ -87,7 +104,12 @@ class ServerlessAPIComponent(pulumi.ComponentResource):
                                 "Action": [
                                     "secretsmanager:GetSecretValue",
                                 ],
-                                "Resource": [args[0], f"{args[0]}*"],
+                                "Resource": [
+                                    args[0],  # Gemini API key
+                                    f"{args[0]}*",
+                                    # Database secrets (pattern matches code-remote/*/db-*)
+                                    f"arn:aws:secretsmanager:*:*:secret:code-remote/{environment}/db-*",
+                                ],
                             }
                         ],
                     }

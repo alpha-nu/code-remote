@@ -25,9 +25,9 @@ Build a secure, scalable, cloud-agnostic remote code execution platform that all
 │                                                                              │
 │  API Layer: API Gateway (HTTP + WebSocket) + Lambda                         │
 │  Execution: Self-hosted Kubernetes cluster with gVisor (Phase 11)           │
-│  Data: DynamoDB (jobs), Aurora PostgreSQL (snippets - Phase 9)              │
-│  Queue: SQS FIFO (Phase 10)                                                 │
-│  Real-time: WebSocket API Gateway (Phase 10)                                │
+│  Data: Aurora PostgreSQL (CRUD) + Neo4j AuraDB (search) - Phase 9           │
+│  Queue: SQS FIFO (Phase 10) ✅                                               │
+│  Real-time: WebSocket API Gateway (Phase 10) ✅                              │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -48,7 +48,7 @@ Build a secure, scalable, cloud-agnostic remote code execution platform that all
 | Backend | FastAPI + Mangum | 1-3 |
 | Execution | Lambda (current), K8s + gVisor (Phase 11) | 2, 11 |
 | Queue | AWS SQS FIFO | 10 |
-| Database | DynamoDB (jobs), Aurora PostgreSQL (snippets) | 10, 9 |
+| Database | Aurora PostgreSQL (CRUD), Neo4j AuraDB (search) | 9 |
 | Auth | AWS Cognito | 6 |
 | LLM | Google Gemini API | 5 |
 | Real-time | API Gateway WebSocket | 10 |
@@ -69,44 +69,47 @@ Build a secure, scalable, cloud-agnostic remote code execution platform that all
 | 6 | Authentication | ✅ Complete | Cognito integration |
 | 7 | Infrastructure | ✅ Complete | Pulumi AWS deployment |
 | 8 | CI/CD | ✅ Complete | GitHub Actions pipeline |
-| 9 | Persistence | 📋 Planned | Code snippets, semantic search |
-| **10** | **Real-Time Async** | **🔄 In Progress** | **WebSocket, SQS, DynamoDB** |
+| 9 | Persistence | � In Progress | PostgreSQL + Neo4j hybrid |
+| 10 | Real-Time Async | ✅ Complete | WebSocket, SQS FIFO |
 | 11 | Kubernetes | 📋 Planned | EKS + gVisor execution |
 
 ---
 
-## Current Focus: Phase 10
+## Current Focus: Phase 9
 
-**Real-Time Async Execution with WebSockets**
+**Persistence with Hybrid PostgreSQL + Neo4j**
 
-Transform from synchronous to asynchronous execution with real-time updates.
+Save and search code snippets with a hybrid relational + graph architecture.
 
 ```
-User clicks "Run"
-       │
-       ▼
-POST /execute ──▶ API Lambda ──▶ SQS FIFO Queue
-       │                               │
-       │ {job_id}                      │
-       ▼                               ▼
-Frontend subscribes          Worker Lambda
-via WebSocket                  │
-       │                       │ Executes code
-       │                       │
-       │◀──────────────────────┘
-       │    Push: job.status
-       │    Push: job.result
-       ▼
-Display result
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Phase 9: Hybrid Persistence                          │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ┌─────────────────────────────────┐                                       │
+│  │        Lambda (FastAPI)         │                                       │
+│  │  - CRUD → PostgreSQL            │                                       │
+│  │  - Search → Neo4j               │                                       │
+│  └───────────────┬─────────────────┘                                       │
+│                  │                                                          │
+│         ┌────────┴────────┐                                                │
+│         ▼                 ▼                                                │
+│  ┌──────────────┐   ┌──────────────┐                                      │
+│  │   Aurora     │   │  Neo4j       │                                      │
+│  │  PostgreSQL  │──▶│  AuraDB      │  (CDC via EventBridge)               │
+│  │              │   │              │                                      │
+│  │  • Users     │   │  • Embeddings│                                      │
+│  │  • Snippets  │   │  • SIMILAR_TO│                                      │
+│  └──────────────┘   │  • Patterns  │                                      │
+│                     └──────────────┘                                      │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Key Components:**
-- DynamoDB: Jobs table + Connections table
-- SQS FIFO: Ordered job processing with DLQ
-- WebSocket API: Real-time push notifications
-- Worker Lambda: SQS consumer, executes code, pushes results
+**Phase 9.1 (Current):** PostgreSQL foundation - Users + Snippets CRUD (backend only)
+**Phase 9.2:** Neo4j + EventBridge CDC sync
+**Phase 9.3:** Vector search with Gemini embeddings
 
-**See:** [Phase 10 Documentation](phases/phase-10-realtime.md)
+**See:** [Phase Documentation](phases/README.md)
 
 ---
 

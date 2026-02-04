@@ -9,8 +9,8 @@ Remote Code Execution Engine: Users write Python code in a web interface, we exe
 ```
 docs/
 ├── README.md                    # This file - documentation index
-├── architecture-plan.md         # High-level architecture overview
-├── DEPLOYMENT.md                # Deployment procedures
+├── architecture-plan.md         # Comprehensive architecture & planning document
+├── deployment.md                # Deployment procedures
 ├── release-strategy.md          # Versioning and release workflows
 ├── future-decisions.md          # Deferred decisions and future plans
 │
@@ -28,10 +28,11 @@ docs/
 
 | Document | Description |
 |----------|-------------|
+| [Architecture Plan](architecture-plan.md) | Comprehensive architecture, phases, decisions |
 | [Architecture Overview](architecture/overview.md) | System design, tech stack, component overview |
 | [Security Model](architecture/security.md) | Sandbox security, import restrictions, resource limits |
 | [Phase Progress](phases/README.md) | Implementation phases, current: Phase 9 |
-| [Deployment Guide](DEPLOYMENT.md) | How to deploy to AWS |
+| [Deployment Guide](deployment.md) | How to deploy to AWS |
 | [Release Strategy](release-strategy.md) | Versioning, tagging, and release workflows |
 
 ## Current Status

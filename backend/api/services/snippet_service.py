@@ -106,6 +106,43 @@ class SnippetService:
         result = await self.db.execute(query)
         return list(result.scalars().all())
 
+    async def list_summaries_by_user(
+        self,
+        user_id: uuid.UUID,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[Snippet]:
+        """List snippet summaries for a user (excludes code for efficiency).
+
+        Args:
+            user_id: Owner's user ID
+            limit: Maximum number to return (default: 50)
+            offset: Number to skip (default: 0)
+
+        Returns:
+            List of Snippets with code deferred, ordered by updated_at descending
+        """
+        # Select all columns except 'code' for efficiency
+        query = (
+            select(
+                Snippet.id,
+                Snippet.user_id,
+                Snippet.title,
+                Snippet.language,
+                Snippet.description,
+                Snippet.execution_count,
+                Snippet.last_execution_at,
+                Snippet.created_at,
+                Snippet.updated_at,
+            )
+            .where(Snippet.user_id == user_id)
+            .order_by(Snippet.updated_at.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        result = await self.db.execute(query)
+        return list(result.mappings().all())
+
     async def update(
         self,
         snippet_id: uuid.UUID,

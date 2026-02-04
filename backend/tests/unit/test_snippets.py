@@ -171,7 +171,7 @@ class TestListSnippets:
         """Test listing snippets when user has none."""
         with patch("api.routers.snippets.SnippetService") as MockService:
             mock_service = MockService.return_value
-            mock_service.list_by_user = AsyncMock(return_value=[])
+            mock_service.list_summaries_by_user = AsyncMock(return_value=[])
 
             # Mock count query
             mock_result = MagicMock()
@@ -186,10 +186,22 @@ class TestListSnippets:
             assert data["total"] == 0
 
     def test_list_snippets_with_data(self, client, mock_db_user, mock_db, mock_snippet):
-        """Test listing snippets with existing data."""
+        """Test listing snippets with existing data (returns summary without code)."""
         with patch("api.routers.snippets.SnippetService") as MockService:
             mock_service = MockService.return_value
-            mock_service.list_by_user = AsyncMock(return_value=[mock_snippet])
+            # list_summaries_by_user returns dict mappings, not Snippet objects
+            summary = {
+                "id": mock_snippet.id,
+                "user_id": mock_snippet.user_id,
+                "title": mock_snippet.title,
+                "language": mock_snippet.language,
+                "description": mock_snippet.description,
+                "execution_count": mock_snippet.execution_count,
+                "last_execution_at": mock_snippet.last_execution_at,
+                "created_at": mock_snippet.created_at,
+                "updated_at": mock_snippet.updated_at,
+            }
+            mock_service.list_summaries_by_user = AsyncMock(return_value=[summary])
 
             mock_result = MagicMock()
             mock_result.scalar.return_value = 1
@@ -201,12 +213,14 @@ class TestListSnippets:
             data = response.json()
             assert len(data["items"]) == 1
             assert data["total"] == 1
+            # Verify code is NOT in the response
+            assert "code" not in data["items"][0]
 
     def test_list_snippets_pagination(self, client, mock_db_user, mock_db):
         """Test listing snippets with pagination parameters."""
         with patch("api.routers.snippets.SnippetService") as MockService:
             mock_service = MockService.return_value
-            mock_service.list_by_user = AsyncMock(return_value=[])
+            mock_service.list_summaries_by_user = AsyncMock(return_value=[])
 
             mock_result = MagicMock()
             mock_result.scalar.return_value = 0

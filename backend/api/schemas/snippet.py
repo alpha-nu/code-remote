@@ -24,6 +24,21 @@ class SnippetUpdate(BaseModel):
     description: str | None = Field(None, max_length=2000)
 
 
+class SnippetSummary(BaseModel):
+    """Schema for snippet summary in list responses (excludes code for efficiency)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    title: str | None
+    language: str
+    description: str | None
+    execution_count: int
+    last_execution_at: datetime | None
+    created_at: datetime
+    updated_at: datetime
+
+
 class SnippetResponse(BaseModel):
     """Schema for snippet in API responses."""
 
@@ -41,9 +56,9 @@ class SnippetResponse(BaseModel):
 
 
 class SnippetListResponse(BaseModel):
-    """Schema for paginated snippet list."""
+    """Schema for paginated snippet list (summaries without code)."""
 
-    items: list[SnippetResponse]
+    items: list[SnippetSummary]
     total: int
     limit: int
     offset: int

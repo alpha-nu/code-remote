@@ -18,6 +18,7 @@ from api.schemas.snippet import (
     SnippetDeleteResponse,
     SnippetListResponse,
     SnippetResponse,
+    SnippetSummary,
     SnippetUpdate,
 )
 from api.services.database import get_db
@@ -92,8 +93,8 @@ async def list_snippets(
 ) -> SnippetListResponse:
     """List all snippets for the authenticated user.
 
-    Returns paginated results, ordered by updated_at descending
-    (most recently modified first).
+    Returns paginated summaries (without code) ordered by updated_at descending.
+    Use GET /snippets/{id} to fetch full snippet with code.
 
     Args:
         user: Authenticated database user
@@ -102,10 +103,10 @@ async def list_snippets(
         offset: Number to skip for pagination
 
     Returns:
-        Paginated list of snippets
+        Paginated list of snippet summaries
     """
     service = SnippetService(db)
-    snippets = await service.list_by_user(user.id, limit=limit, offset=offset)
+    snippets = await service.list_summaries_by_user(user.id, limit=limit, offset=offset)
 
     # Get total count for pagination
     count_query = select(func.count()).select_from(Snippet).where(Snippet.user_id == user.id)
@@ -113,7 +114,7 @@ async def list_snippets(
     total = result.scalar() or 0
 
     return SnippetListResponse(
-        items=[SnippetResponse.model_validate(s) for s in snippets],
+        items=[SnippetSummary.model_validate(s) for s in snippets],
         total=total,
         limit=limit,
         offset=offset,

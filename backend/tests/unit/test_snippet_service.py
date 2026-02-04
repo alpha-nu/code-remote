@@ -172,6 +172,49 @@ class TestSnippetServiceListByUser:
         mock_db.execute.assert_called_once()
 
 
+class TestSnippetServiceListSummaries:
+    """Tests for SnippetService.list_summaries_by_user()."""
+
+    async def test_list_summaries_empty(self, snippet_service, mock_db):
+        """Test listing summaries when user has none."""
+        mock_result = MagicMock()
+        mock_mappings = MagicMock()
+        mock_mappings.all.return_value = []
+        mock_result.mappings.return_value = mock_mappings
+        mock_db.execute.return_value = mock_result
+
+        result = await snippet_service.list_summaries_by_user(uuid.uuid4())
+
+        assert result == []
+
+    async def test_list_summaries_returns_dict_without_code(
+        self, snippet_service, mock_db, sample_snippet
+    ):
+        """Test that summaries return dicts without code field."""
+        summary = {
+            "id": sample_snippet.id,
+            "user_id": sample_snippet.user_id,
+            "title": sample_snippet.title,
+            "language": sample_snippet.language,
+            "description": sample_snippet.description,
+            "execution_count": sample_snippet.execution_count,
+            "last_execution_at": sample_snippet.last_execution_at,
+            "created_at": sample_snippet.created_at,
+            "updated_at": sample_snippet.updated_at,
+        }
+        mock_result = MagicMock()
+        mock_mappings = MagicMock()
+        mock_mappings.all.return_value = [summary]
+        mock_result.mappings.return_value = mock_mappings
+        mock_db.execute.return_value = mock_result
+
+        result = await snippet_service.list_summaries_by_user(sample_snippet.user_id)
+
+        assert len(result) == 1
+        assert "code" not in result[0]
+        assert result[0]["id"] == sample_snippet.id
+
+
 class TestSnippetServiceUpdate:
     """Tests for SnippetService.update()."""
 

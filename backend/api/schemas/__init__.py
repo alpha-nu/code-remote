@@ -11,6 +11,7 @@ from api.schemas.snippet import (
     SnippetDeleteResponse,
     SnippetListResponse,
     SnippetResponse,
+    SnippetSummary,
     SnippetUpdate,
 )
 
@@ -24,5 +25,6 @@ __all__ = [
     "SnippetDeleteResponse",
     "SnippetListResponse",
     "SnippetResponse",
+    "SnippetSummary",
     "SnippetUpdate",
 ]

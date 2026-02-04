@@ -7,10 +7,10 @@ import { executeCode, executeCodeAsync } from '../api/client';
 import { UserMenu } from './UserMenu';
 import { useEffect, useState, useCallback } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { useWebSocket, type ExecutionResultMessage, type WebSocketMessage } from '../hooks';
+import { useWebSocket, type ExecutionResultMessage, type WebSocketMessage, type ConnectionState } from '../hooks';
 import type { ExecutionResponse } from '../types/execution';
 
-export function Toolbar({ onConnectionStateChange }: { onConnectionStateChange?: (state: string) => void }) {
+export function Toolbar({ onConnectionStateChange }: { onConnectionStateChange?: (state: ConnectionState) => void }) {
   const {
     code,
     isExecuting,

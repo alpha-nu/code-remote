@@ -5,6 +5,8 @@
 import Editor from '@monaco-editor/react';
 import { useEffect, useState } from 'react';
 import { useEditorStore } from '../store/editorStore';
+import { useSnippetsStore } from '../store/snippetsStore';
+import { useAutoSave } from '../hooks/useAutoSave';
 import spinner from '../assets/spinner.svg';
 import type { ConnectionState } from '../hooks/useWebSocket';
 
@@ -13,7 +15,9 @@ interface CodeEditorProps {
 }
 
 export function CodeEditor({ connectionState = 'disconnected' }: CodeEditorProps) {
-  const { code, setCode, isExecuting } = useEditorStore();
+  const { code, setCode, isExecuting, result } = useEditorStore();
+  const { loadedSnippetId, loadedSnippetTitle, loadedSnippetCode } = useSnippetsStore();
+  const { saveSnippet } = useAutoSave();
   const [theme, setTheme] = useState(() =>
     document.documentElement.classList.contains('light-theme') ? 'light' : 'vs-dark',
   );
@@ -29,6 +33,14 @@ export function CodeEditor({ connectionState = 'disconnected' }: CodeEditorProps
       window.removeEventListener('storage', onTheme);
     };
   }, []);
+
+  // Auto-save on successful execution
+  useEffect(() => {
+    if (result && result.success && loadedSnippetId) {
+      saveSnippet();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [result]);
 
   const getConnectionLabel = () => {
     switch (connectionState) {
@@ -51,6 +63,8 @@ export function CodeEditor({ connectionState = 'disconnected' }: CodeEditorProps
         return 'Using HTTP requests (WebSocket unavailable)';
     }
   };
+
+  const hasChanges = loadedSnippetId && loadedSnippetCode !== null && code !== loadedSnippetCode;
 
   return (
     <div className="editor-container">
@@ -79,15 +93,28 @@ export function CodeEditor({ connectionState = 'disconnected' }: CodeEditorProps
         loading={<div className="editor-loading"><img src={spinner} className="spinner-logo" alt="loading" /> Loading editor...</div>}
       />
       <div className="editor-status-bar">
-        <span className="status-item">Python</span>
-        <span className="status-item">UTF-8</span>
-        <span
-          className={`status-item connection-indicator ${connectionState}`}
-          title={getConnectionTitle()}
-        >
-          <span className="status-dot" />
-          {getConnectionLabel()}
-        </span>
+        <div className="status-bar-left">
+          {loadedSnippetId && (
+            <span
+              className={`status-item snippet-status ${hasChanges ? 'modified' : 'saved'}`}
+              title={hasChanges ? 'Snippet has unsaved changes' : 'Snippet saved'}
+            >
+              <span className="status-dot" />
+              {loadedSnippetTitle || 'Untitled'}
+            </span>
+          )}
+        </div>
+        <div className="status-bar-right">
+          <span className="status-item">Python</span>
+          <span className="status-item">UTF-8</span>
+          <span
+            className={`status-item connection-indicator ${connectionState}`}
+            title={getConnectionTitle()}
+          >
+            <span className="status-dot" />
+            {getConnectionLabel()}
+          </span>
+        </div>
       </div>
     </div>
   );

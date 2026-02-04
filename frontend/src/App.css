@@ -175,9 +175,15 @@ body {
 }
 
 .spinner-logo.small {
-  width: 18px;
-  height: 18px;
-  margin-right: 8px;
+  width: 16px;
+  height: 16px;
+  margin-right: 6px;
+}
+
+.run-button .spinner-logo.small {
+  width: 16px !important;
+  height: 16px !important;
+  margin-right: 6px;
 }
 
 @keyframes spin {
@@ -381,7 +387,7 @@ input[type="checkbox"] {
 .editor-status-bar {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
   gap: 0;
   padding: 0;
   height: 22px;
@@ -395,6 +401,14 @@ input[type="checkbox"] {
   background-color: #f3f3f3;
   border-top: 1px solid #e5e5e5;
   color: #424242;
+}
+
+.status-bar-left,
+.status-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  height: 100%;
 }
 
 .editor-status-bar .status-item {
@@ -436,12 +450,28 @@ input[type="checkbox"] {
   animation: pulse 1s ease-in-out infinite;
 }
 
+.editor-status-bar .snippet-status .status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.editor-status-bar .snippet-status.saved .status-dot {
+  background-color: #22c55e;
+  box-shadow: 0 0 4px rgba(34, 197, 94, 0.5);
+}
+
+.editor-status-bar .snippet-status.modified .status-dot {
+  background-color: #f59e0b;
+  box-shadow: 0 0 4px rgba(245, 158, 11, 0.5);
+}
+
 /* Floating keyboard hint shown inside the editor (top-right) */
 .editor-container .editor-hint {
   position: absolute;
   top: 10px;
   right: 12px;
-  z-index: 12;
+  z-index: 1;
   pointer-events: none;
 }
 

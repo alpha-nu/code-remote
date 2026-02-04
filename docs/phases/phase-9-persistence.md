@@ -371,6 +371,58 @@ Planned additions:
 - `backend/api/routers/snippets.py` - CRUD endpoints
 - `backend/api/schemas/snippet.py` - Pydantic schemas
 
+---
+
+## Backend Enhancement Requests (from UI Team)
+
+### 1. Add `is_starred` Field to Snippets
+
+**Requirement:** Users should be able to star/favorite snippets for quick access.
+
+**Schema Changes:**
+```sql
+ALTER TABLE snippets ADD COLUMN is_starred BOOLEAN NOT NULL DEFAULT false;
+CREATE INDEX ix_snippets_user_id_starred ON snippets(user_id, is_starred) WHERE is_starred = true;
+```
+
+**API Updates:**
+- Add `is_starred: bool` field to `SnippetResponse`, `SnippetCreate`, `SnippetUpdate` schemas
+- Support filtering starred snippets: `GET /snippets?starred=true`
+- Add dedicated toggle endpoint (optional): `POST /snippets/{id}/star`
+
+**UI Use Case:** Display starred snippets at top of list, show star icon in upper-right wedge.
+
+---
+
+### 2. Include Complexity Analysis in Snippet Response
+
+**Requirement:** Display time/space complexity badges on each snippet without separate API calls.
+
+**Schema Changes:**
+```sql
+ALTER TABLE snippets ADD COLUMN time_complexity VARCHAR(100);
+ALTER TABLE snippets ADD COLUMN space_complexity VARCHAR(100);
+ALTER TABLE snippets ADD COLUMN complexity_analyzed_at TIMESTAMP WITH TIME ZONE;
+```
+
+**API Updates:**
+- Add optional fields to `SnippetResponse`:
+  ```python
+  time_complexity: str | None = None
+  space_complexity: str | None = None
+  complexity_analyzed_at: datetime | None = None
+  ```
+- Auto-analyze complexity on snippet creation (async background task)
+- Re-analyze when code is updated
+- Expose manual re-analysis: `POST /snippets/{id}/analyze`
+
+**Implementation Notes:**
+- Cache analysis results in database to avoid repeated LLM calls
+- Update `complexity_analyzed_at` timestamp on each analysis
+- Return `null` values if not yet analyzed
+
+**UI Use Case:** Show complexity badges directly in snippet list without fetching from `/analyze` endpoint.
+
 ### Modified Files
 - `infra/pulumi/__main__.py` - Added database component
 - `infra/pulumi/components/serverless_api.py` - Lambda→DB connectivity

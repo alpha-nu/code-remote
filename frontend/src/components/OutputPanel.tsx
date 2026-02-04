@@ -155,7 +155,7 @@ export function OutputPanel() {
             <div className="output-content-inner">
             {isExecuting && !result && (
               <div className="loading-spinner">
-                <img src={spinner} className="spinner-logo" alt="executing" /> Executing code...
+                <img src={spinner} className="spinner-logo small" alt="executing" /> Executing code...
               </div>
             )}
 

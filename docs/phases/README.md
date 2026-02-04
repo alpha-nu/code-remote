@@ -8,7 +8,8 @@ This directory contains detailed documentation for each development phase.
 |-------|------|--------|-------------|
 | 1-7 | Core Foundation | ✅ Complete | Authentication, execution, analysis |
 | 8 | CI/CD | ✅ Complete | GitHub Actions, automated deployment |
-| 9 | Persistence | � In Progress | PostgreSQL + Neo4j hybrid |
+| 9.1 | PostgreSQL Foundation | ✅ Complete | Users, Snippets CRUD, Aurora Serverless |
+| 9.2 | Neo4j Semantic Search | 🔲 Planned | Graph DB, embeddings, semantic search |
 | 10 | Real-Time Async | ✅ Complete | WebSocket, SQS, async execution |
 | 11 | Kubernetes | 🔲 Planned | Self-hosted execution cluster |
 
@@ -16,15 +17,16 @@ This directory contains detailed documentation for each development phase.
 
 ### Completed Phases
 - See commit history and architecture docs for details on phases 1-8
+- [Phase 9.1: PostgreSQL Foundation](phase-9-persistence.md) - Users, Snippets, Aurora
 - Phase 10 implementation details below
 
-### In Progress
-- **Phase 9: Persistence** - Hybrid architecture with PostgreSQL (CRUD) + Neo4j (Vector Search)
-  - Phase 9.1: PostgreSQL Foundation (current)
-  - Phase 9.2: Neo4j + CDC sync (upcoming)
-  - Phase 9.3: Vector search (upcoming)
-
 ### Upcoming
+- **[Phase 9.2: Neo4j Semantic Search](phase-9.2-neo4j-semantic-search.md)** - Next up!
+  - Neo4j AuraDB for graph storage + vector search
+  - Gemini embeddings (code + title + description)
+  - Queue-based CDC sync (PostgreSQL → Neo4j)
+  - Complexity analysis stored in graph
+  - Semantic search endpoints
 - Phase 11: Kubernetes execution
 
 ## Technology Evolution
@@ -39,9 +41,12 @@ Phase 10:  + WebSocket API Gateway
            + Worker Lambda
            + Real-time result push
      ↓
-Phase 9:   + Aurora PostgreSQL (CRUD, source of truth)
-           + Neo4j AuraDB (Vector search, patterns)
-           + EventBridge CDC (PG → Neo4j sync)
+Phase 9.1: + Aurora PostgreSQL (CRUD, source of truth)
+           + Snippets + Users tables
+     ↓
+Phase 9.2: + Neo4j AuraDB (Semantic search, knowledge graph)
+           + Gemini embeddings
+           + SQS CDC sync (PostgreSQL → Neo4j)
      ↓
 Phase 11:  + EKS Cluster
            + gVisor (runsc)

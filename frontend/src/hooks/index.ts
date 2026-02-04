@@ -2,6 +2,7 @@
  * Custom React hooks for the application.
  */
 
+export { useAutoSave } from './useAutoSave';
 export { useWebSocket } from './useWebSocket';
 export type {
   ConnectionState,

@@ -3,67 +3,13 @@
  */
 
 import { useState, useEffect } from 'react';
+import { useSnippets, useDeleteSnippet, useUpdateSnippet } from '../hooks/useSnippets';
+import { useEditorStore } from '../store/editorStore';
+import { useSnippetsStore } from '../store/snippetsStore';
+import { AddSnippetModal } from './AddSnippetModal';
+import type { SnippetSummary } from '../types/api';
+import spinner from '../assets/spinner.svg';
 import './SnippetsPanel.css';
-
-// Mock snippet data for prototype
-interface Snippet {
-  id: string;
-  name: string;
-  description?: string;
-  code: string;
-  language: string;
-  timeComplexity?: string;
-  spaceComplexity?: string;
-  isStarred: boolean;
-  createdAt: string;
-}
-
-const MOCK_SNIPPETS: Snippet[] = [
-  {
-    id: '1',
-    name: 'Binary Search',
-    description: 'Classic binary search implementation',
-    code: 'def binary_search(arr, target):\n    left, right = 0, len(arr) - 1\n    while left <= right:\n        mid = (left + right) // 2\n        if arr[mid] == target:\n            return mid\n        elif arr[mid] < target:\n            left = mid + 1\n        else:\n            right = mid - 1\n    return -1',
-    language: 'python',
-    timeComplexity: 'O(log n)',
-    spaceComplexity: 'O(1)',
-    isStarred: true,
-    createdAt: '2026-01-30T10:30:00Z',
-  },
-  {
-    id: '2',
-    name: 'Fibonacci Memoization',
-    description: 'Dynamic programming approach to Fibonacci',
-    code: 'def fib(n, memo={}):\n    if n in memo:\n        return memo[n]\n    if n <= 1:\n        return n\n    memo[n] = fib(n-1, memo) + fib(n-2, memo)\n    return memo[n]',
-    language: 'python',
-    timeComplexity: 'O(n)',
-    spaceComplexity: 'O(n)',
-    isStarred: false,
-    createdAt: '2026-01-29T15:20:00Z',
-  },
-  {
-    id: '3',
-    name: 'Merge Sort',
-    description: 'Divide and conquer sorting algorithm',
-    code: 'def merge_sort(arr):\n    if len(arr) <= 1:\n        return arr\n    mid = len(arr) // 2\n    left = merge_sort(arr[:mid])\n    right = merge_sort(arr[mid:])\n    return merge(left, right)\n\ndef merge(left, right):\n    result = []\n    i = j = 0\n    while i < len(left) and j < len(right):\n        if left[i] <= right[j]:\n            result.append(left[i])\n            i += 1\n        else:\n            result.append(right[j])\n            j += 1\n    result.extend(left[i:])\n    result.extend(right[j:])\n    return result',
-    language: 'python',
-    timeComplexity: 'O(n log n)',
-    spaceComplexity: 'O(n)',
-    isStarred: true,
-    createdAt: '2026-01-28T09:15:00Z',
-  },
-  {
-    id: '4',
-    name: 'Two Sum',
-    description: 'Hash map solution for two sum problem',
-    code: 'def two_sum(nums, target):\n    seen = {}\n    for i, num in enumerate(nums):\n        complement = target - num\n        if complement in seen:\n            return [seen[complement], i]\n        seen[num] = i\n    return []',
-    language: 'python',
-    timeComplexity: 'O(n)',
-    spaceComplexity: 'O(n)',
-    isStarred: false,
-    createdAt: '2026-01-27T14:00:00Z',
-  },
-];
 
 export function SnippetsPanel() {
   const [isOpen, setIsOpen] = useState(() => {
@@ -72,8 +18,24 @@ export function SnippetsPanel() {
     return saved ? JSON.parse(saved) : true; // default to open
   });
 
-  const [snippets, setSnippets] = useState<Snippet[]>(MOCK_SNIPPETS);
   const [selectedSnippet, setSelectedSnippet] = useState<string | null>(null);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [snippetCodes, setSnippetCodes] = useState<Record<string, string>>({});
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Fetch snippets from API
+  const { data: snippetsData, isLoading, error } = useSnippets(50, 0);
+  const snippets = snippetsData?.items || [];
+
+  const deleteSnippet = useDeleteSnippet();
+  const updateSnippet = useUpdateSnippet();
+  const { code, setCode } = useEditorStore();
+  const {
+    loadedSnippetId,
+    loadedSnippetCode,
+    setLoadedSnippet,
+    clearLoadedSnippet
+  } = useSnippetsStore();
 
   // Persist open/close state
   useEffect(() => {
@@ -84,15 +46,27 @@ export function SnippetsPanel() {
     setIsOpen(!isOpen);
   };
 
-  const handleSnippetClick = (id: string) => {
-    setSelectedSnippet(selectedSnippet === id ? null : id);
-  };
+  const handleSnippetClick = async (id: string) => {
+    const newSelected = selectedSnippet === id ? null : id;
+    setSelectedSnippet(newSelected);
 
-  const handleStarToggle = (id: string, event: React.MouseEvent) => {
-    event.stopPropagation();
-    setSnippets(snippets.map(s =>
-      s.id === id ? { ...s, isStarred: !s.isStarred } : s
-    ));
+    // Fetch code if expanding and we don't have it cached
+    if (newSelected && !snippetCodes[id]) {
+      try {
+        const response = await fetch(`http://localhost:8000/snippets/${id}`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}`,
+          },
+        });
+
+        if (response.ok) {
+          const snippet = await response.json();
+          setSnippetCodes(prev => ({ ...prev, [id]: snippet.code }));
+        }
+      } catch (err) {
+        console.error('Failed to fetch snippet code:', err);
+      }
+    }
   };
 
   const formatDate = (dateString: string) => {
@@ -108,6 +82,77 @@ export function SnippetsPanel() {
     if (diffHours < 24) return `${diffHours}h ago`;
     if (diffDays < 7) return `${diffDays}d ago`;
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
+
+  const handleStarToggle = async (snippetId: string, currentStarred: boolean, e: React.MouseEvent) => {
+    e.stopPropagation();
+
+    try {
+      await updateSnippet.mutateAsync({
+        id: snippetId,
+        data: { isStarred: !currentStarred },
+      });
+    } catch (err) {
+      console.error('Failed to toggle star:', err);
+      alert('Failed to update favorite status. Please try again.');
+    }
+  };
+
+  const handleLoad = async (snippetId: string) => {
+    // Warn if loading would replace code in editor:
+    // - Loading when no snippet is currently loaded, OR
+    // - Loading a different snippet than currently loaded, OR
+    // - Loading same snippet but code has been modified
+    const hasUnsavedChanges = code.trim() && (
+      snippetId !== loadedSnippetId || code !== loadedSnippetCode
+    );
+
+    if (hasUnsavedChanges) {
+      const confirmed = confirm(
+        'You have unsaved code in the editor. Loading this snippet will replace it. Continue?'
+      );
+      if (!confirmed) return;
+    }
+
+    try {
+      // Fetch full snippet (including code)
+      const response = await fetch(`http://localhost:8000/snippets/${snippetId}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to load snippet');
+      }
+
+      const snippet = await response.json();
+      setCode(snippet.code);
+      setLoadedSnippet(snippetId, snippet.title || 'Untitled', snippet.code);
+    } catch (err) {
+      console.error('Failed to load snippet:', err);
+      alert('Failed to load snippet. Please try again.');
+    }
+  };
+
+  const handleDelete = async (snippetId: string, title: string) => {
+    const confirmed = confirm(
+      `Delete "${title}"? This action cannot be undone.`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      await deleteSnippet.mutateAsync(snippetId);
+
+      // Clear loaded snippet if it was deleted
+      if (loadedSnippetId === snippetId) {
+        clearLoadedSnippet();
+      }
+    } catch (err) {
+      console.error('Failed to delete snippet:', err);
+      alert('Failed to delete snippet. Please try again.');
+    }
   };
 
   return (
@@ -138,31 +183,52 @@ export function SnippetsPanel() {
                 type="text"
                 placeholder="Search snippets..."
                 className="snippets-search-input"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
               />
+              {searchQuery && (
+                <button
+                  className="search-clear-btn"
+                  onClick={() => setSearchQuery('')}
+                  title="Clear search"
+                >
+                  ×
+                </button>
+              )}
             </div>
             <div className="snippets-actions">
-              <button className="snippet-header-btn add-btn" title="Create new snippet">
-                <span className="btn-icon">+</span>
-                <span>Add</span>
-              </button>
-              <button className="snippet-header-btn search-btn" title="Advanced search">
-                <svg className="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <circle cx="11" cy="11" r="6" />
-                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                </svg>
-                <span>Search</span>
+              <button
+                className="snippet-action-icon add"
+                title="Create new snippet"
+                onClick={() => setIsAddModalOpen(true)}
+              >
+                ✚
               </button>
             </div>
           </div>
 
           <div className="snippets-list">
-            {snippets.length === 0 ? (
+            {isLoading ? (
+              <div className="snippets-loading">
+                <img src={spinner} className="spinner-logo small" alt="Loading" /> Loading snippets...
+              </div>
+            ) : error ? (
+              <div className="snippets-error">
+                <p>Failed to load snippets</p>
+                <p className="error-message">{error instanceof Error ? error.message : 'Unknown error'}</p>
+              </div>
+            ) : snippets.length === 0 ? (
               <div className="snippets-empty">
                 <p>No snippets yet</p>
-                <button className="create-snippet-btn">Create your first snippet</button>
+                <button
+                  className="create-snippet-btn"
+                  onClick={() => setIsAddModalOpen(true)}
+                >
+                  Create your first snippet
+                </button>
               </div>
             ) : (
-              snippets.map((snippet) => (
+              snippets.map((snippet: SnippetSummary) => (
                 <div
                   key={snippet.id}
                   className={`snippet-item ${selectedSnippet === snippet.id ? 'selected' : ''}`}
@@ -170,45 +236,53 @@ export function SnippetsPanel() {
                 >
                   <div className="snippet-item-header">
                     <div className="snippet-item-title">
-                      <span className="snippet-name">{snippet.name}</span>
+                      <span className="snippet-name">{snippet.title || 'Untitled'}</span>
                     </div>
                   </div>
                   {snippet.description && (
                     <p className="snippet-description">{snippet.description}</p>
                   )}
-                  {(snippet.timeComplexity || snippet.spaceComplexity) && (
-                    <div className="snippet-complexity">
-                      {snippet.timeComplexity && (
-                        <span className="complexity-badge time">
-                          Time: {snippet.timeComplexity}
-                        </span>
-                      )}
-                      {snippet.spaceComplexity && (
-                        <span className="complexity-badge space">
-                          Space: {snippet.spaceComplexity}
-                        </span>
-                      )}
-                    </div>
-                  )}
+                  <div className="snippet-complexity">
+                    <span className="complexity-badge time">
+                      Time: {snippet.timeComplexity || 'O(n)'}
+                    </span>
+                    <span className="complexity-badge space">
+                      Space: {snippet.spaceComplexity || 'O(1)'}
+                    </span>
+                  </div>
                   <button
                     className={`snippet-star-wedge ${snippet.isStarred ? 'starred' : ''}`}
-                    onClick={(e) => handleStarToggle(snippet.id, e)}
-                    title={snippet.isStarred ? 'Unstar snippet' : 'Star snippet'}
+                    title={snippet.isStarred ? 'Remove from favorites' : 'Add to favorites'}
+                    onClick={(e) => handleStarToggle(snippet.id, snippet.isStarred, e)}
                   >
                     ★
                   </button>
                   <span className="snippet-date">{formatDate(snippet.createdAt)}</span>
                   {selectedSnippet === snippet.id && (
                     <div className="snippet-code-preview">
-                      <pre>{snippet.code}</pre>
+                      <div className="snippet-preview-code">
+                        <pre>{snippetCodes[snippet.id] || 'Loading code...'}</pre>
+                      </div>
                       <div className="snippet-actions">
-                        <button className="snippet-action-btn load" title="Load snippet into editor">
-                          <span className="btn-icon">⇥</span>
-                          <span className="btn-label">Load</span>
+                        <button
+                          className="snippet-action-icon load"
+                          title="Load snippet into editor"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleLoad(snippet.id);
+                          }}
+                        >
+                          ↻
                         </button>
-                        <button className="snippet-action-btn danger" title="Delete snippet">
-                          <span className="btn-icon">×</span>
-                          <span className="btn-label">Delete</span>
+                        <button
+                          className="snippet-action-icon delete"
+                          title="Delete snippet"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDelete(snippet.id, snippet.title || 'Untitled');
+                          }}
+                        >
+                          ✕
                         </button>
                       </div>
                     </div>
@@ -219,6 +293,12 @@ export function SnippetsPanel() {
           </div>
         </div>
       )}
+
+      {/* Add Snippet Modal */}
+      <AddSnippetModal
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+      />
     </div>
   );
 }

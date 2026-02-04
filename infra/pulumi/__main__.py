@@ -181,7 +181,7 @@ pulumi.export("cognito_user_pool_client_id", cognito.user_pool_client.id)
 pulumi.export("cognito_user_pool_endpoint", cognito.user_pool.endpoint)
 
 # Database outputs
-pulumi.export("database_cluster_endpoint", database.cluster.endpoint)
+pulumi.export("database_endpoint", database.endpoint)
 pulumi.export("database_connection_secret_arn", database.connection_secret.arn)
 
 # API outputs

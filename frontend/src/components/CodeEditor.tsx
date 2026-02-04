@@ -6,8 +6,13 @@ import Editor from '@monaco-editor/react';
 import { useEffect, useState } from 'react';
 import { useEditorStore } from '../store/editorStore';
 import spinner from '../assets/spinner.svg';
+import type { ConnectionState } from '../hooks/useWebSocket';
 
-export function CodeEditor() {
+interface CodeEditorProps {
+  connectionState?: ConnectionState;
+}
+
+export function CodeEditor({ connectionState = 'disconnected' }: CodeEditorProps) {
   const { code, setCode, isExecuting } = useEditorStore();
   const [theme, setTheme] = useState(() =>
     document.documentElement.classList.contains('light-theme') ? 'light' : 'vs-dark',
@@ -24,6 +29,28 @@ export function CodeEditor() {
       window.removeEventListener('storage', onTheme);
     };
   }, []);
+
+  const getConnectionLabel = () => {
+    switch (connectionState) {
+      case 'connected':
+        return 'WebSocket';
+      case 'connecting':
+        return 'Connecting';
+      default:
+        return 'HTTP';
+    }
+  };
+
+  const getConnectionTitle = () => {
+    switch (connectionState) {
+      case 'connected':
+        return 'Real-time connection via WebSocket';
+      case 'connecting':
+        return 'Establishing WebSocket connection...';
+      default:
+        return 'Using HTTP requests (WebSocket unavailable)';
+    }
+  };
 
   return (
     <div className="editor-container">
@@ -51,6 +78,17 @@ export function CodeEditor() {
         }}
         loading={<div className="editor-loading"><img src={spinner} className="spinner-logo" alt="loading" /> Loading editor...</div>}
       />
+      <div className="editor-status-bar">
+        <span className="status-item">Python</span>
+        <span className="status-item">UTF-8</span>
+        <span
+          className={`status-item connection-indicator ${connectionState}`}
+          title={getConnectionTitle()}
+        >
+          <span className="status-dot" />
+          {getConnectionLabel()}
+        </span>
+      </div>
     </div>
   );
 }

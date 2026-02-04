@@ -2,13 +2,14 @@
  * Main application component.
  */
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toolbar } from './components/Toolbar';
 import { CodeEditor } from './components/CodeEditor';
 import { OutputPanel } from './components/OutputPanel';
 import { configureAmplify } from './config/amplify';
 import { useAuthStore } from './store/authStore';
+import type { ConnectionState } from './hooks/useWebSocket';
 import './App.css';
 
 // Configure AWS Amplify at app startup
@@ -25,6 +26,7 @@ const queryClient = new QueryClient({
 
 function AppContent() {
   const initialize = useAuthStore((state) => state.initialize);
+  const [connectionState, setConnectionState] = useState<ConnectionState>('disconnected');
 
   useEffect(() => {
     // Initialize auth state on mount
@@ -41,10 +43,10 @@ function AppContent() {
 
   return (
     <div className="app">
-      <Toolbar />
+      <Toolbar onConnectionStateChange={setConnectionState} />
       <main className="main-content">
         <div className="editor-pane">
-          <CodeEditor />
+          <CodeEditor connectionState={connectionState} />
         </div>
         <div className="output-pane">
           <OutputPanel />

@@ -10,7 +10,7 @@ import { useAuthStore } from '../store/authStore';
 import { useWebSocket, type ExecutionResultMessage, type WebSocketMessage } from '../hooks';
 import type { ExecutionResponse } from '../types/execution';
 
-export function Toolbar() {
+export function Toolbar({ onConnectionStateChange }: { onConnectionStateChange?: (state: string) => void }) {
   const {
     code,
     isExecuting,
@@ -29,6 +29,11 @@ export function Toolbar() {
     connectionId,
     addMessageHandler,
   } = useWebSocket({ autoConnect: true });
+
+  // Notify parent of connection state changes
+  useEffect(() => {
+    onConnectionStateChange?.(connectionState);
+  }, [connectionState, onConnectionStateChange]);
 
   // Track pending job for async execution
   const [pendingJobId, setPendingJobId] = useState<string | null>(null);
@@ -181,25 +186,6 @@ export function Toolbar() {
           </button>
 
           <span className="keyboard-hint">Ctrl+Enter</span>
-
-          {/* Connection status indicator */}
-          {isAuthenticated && (
-            <span
-              className={`connection-status ${connectionState}`}
-              title={
-                connectionState === 'connected'
-                  ? 'Real-time updates enabled'
-                  : connectionState === 'connecting'
-                  ? 'Connecting to real-time updates...'
-                  : 'Real-time updates unavailable (using fallback)'
-              }
-            >
-              <span className="status-dot" />
-              {connectionState === 'connected' && <span className="status-text">Live</span>}
-              {connectionState === 'connecting' && <span className="status-text connecting">Connecting</span>}
-              {connectionState === 'error' && <span className="status-text error">Offline</span>}
-            </span>
-          )}
         </div>
       </div>
 

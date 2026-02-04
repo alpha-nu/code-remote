@@ -367,6 +367,73 @@ input[type="checkbox"] {
 .editor-container {
   height: 100%;
   position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.editor-container > .monaco-editor-wrapper,
+.editor-container > section {
+  flex: 1;
+  min-height: 0;
+}
+
+/* Editor status bar - VS Code Dark theme style */
+.editor-status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0;
+  padding: 0;
+  height: 22px;
+  background-color: #1f1f1f;
+  border-top: 1px solid #2d2d2d;
+  font-size: 12px;
+  color: #cccccc;
+}
+
+.light-theme .editor-status-bar {
+  background-color: #f3f3f3;
+  border-top: 1px solid #e5e5e5;
+  color: #424242;
+}
+
+.editor-status-bar .status-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  height: 100%;
+  cursor: default;
+  transition: background-color 0.1s;
+}
+
+.editor-status-bar .status-item:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.light-theme .editor-status-bar .status-item:hover {
+  background-color: rgba(0, 0, 0, 0.06);
+}
+
+.editor-status-bar .connection-indicator {
+  cursor: default;
+}
+
+.editor-status-bar .connection-indicator .status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #6c6c6c;
+}
+
+.editor-status-bar .connection-indicator.connected .status-dot {
+  background-color: #22c55e;
+  box-shadow: 0 0 4px rgba(34, 197, 94, 0.5);
+}
+
+.editor-status-bar .connection-indicator.connecting .status-dot {
+  background-color: #f59e0b;
+  animation: pulse 1s ease-in-out infinite;
 }
 
 /* Floating keyboard hint shown inside the editor (top-right) */

@@ -25,7 +25,7 @@ async def analyze_code(
     user: CognitoUser = Depends(get_current_user),
     analyzer: AnalyzerService = Depends(get_analyzer_service),
     db: AsyncSession = Depends(get_db),
-    sync_service: SyncService = Depends(get_sync_service),
+    sync_service: SyncService | None = Depends(get_sync_service),
 ) -> AnalyzeResponse:
     """Analyze Python code complexity using LLM.
 
@@ -62,11 +62,12 @@ async def analyze_code(
                     f"Persisted complexity to snippet {request.snippet_id}: "
                     f"time={result.time_complexity}, space={result.space_complexity}"
                 )
-                # Enqueue sync event to update Neo4j
-                await sync_service.enqueue_analyzed(
-                    snippet_id=str(request.snippet_id),
-                    user_id=str(db_user.id),
-                )
+                # Enqueue sync event to update Neo4j (if configured)
+                if sync_service:
+                    await sync_service.enqueue_analyzed(
+                        snippet_id=str(request.snippet_id),
+                        user_id=str(db_user.id),
+                    )
             else:
                 logger.warning(
                     f"Failed to update snippet {request.snippet_id} - not found or not owned"

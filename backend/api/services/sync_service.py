@@ -113,13 +113,22 @@ def get_sqs_client() -> "SQSClient":
     return boto3.client("sqs")
 
 
-def get_sync_service() -> SyncService:
-    """Get sync service instance.
+def get_sync_service() -> SyncService | None:
+    """Get sync service instance if configured.
 
     Returns:
-        SyncService configured with settings.
+        SyncService configured with settings, or None if not configured.
     """
-    return SyncService(
-        sqs_client=get_sqs_client(),
-        queue_url=settings.snippet_sync_queue_url,
-    )
+    queue_url = settings.snippet_sync_queue_url
+    if not queue_url:
+        logger.debug("Sync service not configured: SNIPPET_SYNC_QUEUE_URL not set")
+        return None
+
+    try:
+        return SyncService(
+            sqs_client=get_sqs_client(),
+            queue_url=queue_url,
+        )
+    except Exception as e:
+        logger.warning(f"Failed to initialize sync service: {e}")
+        return None

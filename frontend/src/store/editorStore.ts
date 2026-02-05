@@ -4,6 +4,14 @@
 
 import { create } from 'zustand';
 import type { AnalyzeResponse, ExecutionResponse } from '../types/execution';
+import type { Snippet, SnippetSummary } from '../types/api';
+
+interface SnippetListResponse {
+  items: SnippetSummary[];
+  total: number;
+  limit: number;
+  offset: number;
+}
 
 const DEFAULT_CODE = `# Write your Python code here
 # Example: Calculate factorial
@@ -98,6 +106,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   analyze: async () => {
     const { analyzeCode } = await import('../api/client');
     const { useSnippetsStore } = await import('./snippetsStore');
+    const { queryClient } = await import('../utils/queryClient');
     set({ isAnalyzing: true, analysis: null });
     try {
       const code = useEditorStore.getState().code;
@@ -107,6 +116,39 @@ export const useEditorStore = create<EditorState>((set) => ({
         snippet_id: snippetId ?? undefined,
       });
       set({ analysis, lastAnalyzedCode: code });
+
+      // Update snippet cache with new complexity values if analysis succeeded
+      if (snippetId && analysis.success) {
+        // Update individual snippet in cache if it exists
+        queryClient.setQueryData<Snippet>(
+          ['snippet', snippetId],
+          (old) => old ? {
+            ...old,
+            timeComplexity: analysis.time_complexity,
+            spaceComplexity: analysis.space_complexity,
+          } : old
+        );
+
+        // Update snippet in the list cache
+        queryClient.setQueriesData<SnippetListResponse>(
+          { queryKey: ['snippets'] },
+          (old) => {
+            if (!old?.items) return old;
+            return {
+              ...old,
+              items: old.items.map((snippet) =>
+                snippet.id === snippetId
+                  ? {
+                      ...snippet,
+                      timeComplexity: analysis.time_complexity,
+                      spaceComplexity: analysis.space_complexity,
+                    }
+                  : snippet
+              ),
+            };
+          }
+        );
+      }
     } catch {
       // ignore analysis errors
     } finally {

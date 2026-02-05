@@ -13,17 +13,29 @@ interface SnippetListResponse {
   offset: number;
 }
 
-const DEFAULT_CODE = `# Write your Python code here
-# Example: Calculate factorial
+const DEFAULT_CODE = `# Welcome to Code Remote! 🚀
 
-def factorial(n):
-    if n <= 1:
-        return 1
-    return n * factorial(n - 1)
+def welcome():
+    features = [
+        "⚡ Execute Python code instantly",
+        "🧠 Analyze complexity with AI",
+        "💾 Save snippets for later",
+        "🔍 Search your code library"
+    ]
 
-# Test the function
-for i in range(1, 6):
-    print(f"factorial({i}) = {factorial(i)}")
+    print("=" * 45)
+    print(" " * 10 + "CODE REMOTE")
+    print("=" * 45)
+
+    for feature in features:
+        print(f"  {feature}")
+
+    print("=" * 45)
+    print("\\n👈 Check out the sidebar for saved snippets")
+    print("⬆️  Hit Execute to run this code")
+    print("🔬 Click Analyze for complexity insights\\n")
+
+welcome()
 `;
 
 interface EditorState {

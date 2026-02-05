@@ -57,7 +57,8 @@ class TestProcessAnalyzedEvent:
     def mock_neo4j(self):
         """Create a mock Neo4j service."""
         mock = MagicMock()
-        mock.upsert_snippet = AsyncMock()
+        # upsert_snippet is a sync method
+        mock.upsert_snippet = MagicMock()
         return mock
 
     @pytest.fixture
@@ -149,7 +150,8 @@ class TestProcessDeletedEvent:
     def mock_neo4j(self):
         """Create a mock Neo4j service."""
         mock = MagicMock()
-        mock.delete_snippet = AsyncMock()
+        # delete_snippet is a sync method that returns bool
+        mock.delete_snippet = MagicMock(return_value=True)
         return mock
 
     @pytest.fixture

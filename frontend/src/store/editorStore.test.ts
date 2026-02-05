@@ -19,7 +19,7 @@ describe('useEditorStore', () => {
   describe('code state', () => {
     it('should have default code', () => {
       const { code } = useEditorStore.getState();
-      expect(code).toContain('factorial');
+      expect(code).toContain('CODE REMOTE');
     });
 
     it('should update code', () => {
@@ -154,7 +154,7 @@ describe('useEditorStore', () => {
 
       // Verify reset
       const resetState = useEditorStore.getState();
-      expect(resetState.code).toContain('factorial');
+      expect(resetState.code).toContain('CODE REMOTE');
       expect(resetState.isExecuting).toBe(false);
       expect(resetState.result).toBeNull();
       expect(resetState.apiError).toBeNull();

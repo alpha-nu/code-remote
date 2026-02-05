@@ -220,12 +220,6 @@ export function SnippetsPanel() {
             ) : snippets.length === 0 ? (
               <div className="snippets-empty">
                 <p>No snippets yet</p>
-                <button
-                  className="create-snippet-btn"
-                  onClick={() => setIsAddModalOpen(true)}
-                >
-                  Create your first snippet
-                </button>
               </div>
             ) : (
               snippets.map((snippet: SnippetSummary) => (

@@ -218,7 +218,8 @@ export function OutputPanel() {
                 {/* Empty success state */}
                 {result.success && !result.stdout && !result.stderr && (
                   <div className="output-section">
-                    <p className="empty-output">Code executed successfully with no output.</p>
+                    <div className="section-label">stdout</div>
+                    <pre className="stdout">(no output)</pre>
                   </div>
                 )}
               </>

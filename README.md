@@ -1,5 +1,5 @@
 <div align="center">
-<img src="frontend/public/code-remote.png" width="180" alt="Code Remote Logo">
+<img src="frontend/public/logo-180.png" width="180" alt="Code Remote Logo">
 
 <h1>Code Remote</h1>
 

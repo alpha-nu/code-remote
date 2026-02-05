@@ -77,16 +77,16 @@ async def process_analyzed_event(
             return False
 
         # Upsert to Neo4j
-        await neo4j_service.upsert_snippet(
+        neo4j_service.upsert_snippet(
             snippet_id=str(snippet.id),
             user_id=str(user.id),
-            user_email=user.email,
             title=snippet.title,
+            code=snippet.code,
             language=snippet.language,
-            description=snippet.description,
-            time_complexity=snippet.time_complexity,
-            space_complexity=snippet.space_complexity,
+            time_complexity=snippet.time_complexity or "O(?)",
+            space_complexity=snippet.space_complexity or "O(?)",
             embedding=embedding,
+            description=snippet.description,
         )
 
         logger.info(

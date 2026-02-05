@@ -4,6 +4,7 @@ Provides authenticated endpoints for managing user code snippets.
 All endpoints require Cognito JWT authentication.
 """
 
+import logging
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -23,7 +24,10 @@ from api.schemas.snippet import (
 )
 from api.services.database import get_db
 from api.services.snippet_service import SnippetService
+from api.services.sync_service import SyncService, get_sync_service
 from api.services.user_service import UserService
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/snippets", tags=["snippets"])
 
@@ -216,15 +220,18 @@ async def delete_snippet(
     snippet_id: uuid.UUID,
     user: User = Depends(get_db_user),
     db: AsyncSession = Depends(get_db),
+    sync_service: SyncService = Depends(get_sync_service),
 ) -> SnippetDeleteResponse:
     """Delete a snippet.
 
     Only deletes snippets owned by the authenticated user.
+    Enqueues a sync event to remove from Neo4j.
 
     Args:
         snippet_id: UUID of the snippet
         user: Authenticated database user
         db: Database session
+        sync_service: Sync service for Neo4j events
 
     Returns:
         Deletion confirmation
@@ -240,5 +247,15 @@ async def delete_snippet(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Snippet not found",
         )
+
+    # Enqueue sync event to remove from Neo4j
+    try:
+        await sync_service.enqueue_deleted(
+            snippet_id=str(snippet_id),
+            user_id=str(user.id),
+        )
+    except Exception as e:
+        # Don't fail delete if sync event fails
+        logger.error(f"Failed to enqueue delete sync event: {e}")
 
     return SnippetDeleteResponse(deleted=True, id=snippet_id)

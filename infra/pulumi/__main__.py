@@ -21,8 +21,11 @@ from components.ecr import ECRComponent
 from components.frontend import FrontendComponent
 from components.messaging import MessagingComponent
 from components.migration import MigrationComponent
+from components.neo4j import Neo4jComponent
+from components.neo4j_migration import Neo4jMigrationComponent
 from components.secrets import SecretsComponent
 from components.serverless_api import ServerlessAPIComponent
+from components.sync_worker import SyncWorkerComponent
 from components.vpc import VPCComponent
 from components.websocket import WebSocketComponent
 from components.worker import WorkerComponent
@@ -33,6 +36,10 @@ aws_config = pulumi.Config("aws")
 environment = pulumi.get_stack()  # dev, staging, or prod
 aws_region = aws_config.require("region")  # Get from aws:region config
 gemini_model = config.require("gemini_model")  # Required: e.g., gemini-2.5-flash
+neo4j_uri = config.get("neo4j_uri") or ""  # Optional: Neo4j AuraDB URI
+neo4j_password = config.get_secret(
+    "neo4j_password"
+)  # Optional: Neo4j password (secret)
 
 # Common tags for all resources
 common_tags = {
@@ -100,6 +107,21 @@ database = DatabaseComponent(
 )
 
 # =============================================================================
+# Neo4j - AuraDB Configuration & Sync Queue
+# =============================================================================
+neo4j = (
+    Neo4jComponent(
+        f"{environment}-neo4j",
+        environment=environment,
+        neo4j_uri=neo4j_uri,
+        neo4j_password=neo4j_password or pulumi.Output.from_input(""),
+        tags=common_tags,
+    )
+    if neo4j_uri and neo4j_password
+    else None
+)
+
+# =============================================================================
 # Serverless API - Lambda + API Gateway
 # =============================================================================
 api = ServerlessAPIComponent(
@@ -122,6 +144,9 @@ api = ServerlessAPIComponent(
         "DEBUG": "false" if environment == "prod" else "true",
         "CORS_ORIGINS": '["*"]',  # API Gateway handles CORS
         "DATABASE_SECRET_ARN": database.connection_secret.arn,
+        # Neo4j sync queue (if configured)
+        "SNIPPET_SYNC_QUEUE_URL": neo4j.sync_queue.url if neo4j else "",
+        "NEO4J_SECRET_ARN": neo4j.credentials_secret.arn if neo4j else "",
     },
     tags=common_tags,
 )
@@ -150,6 +175,30 @@ worker = WorkerComponent(
     secrets_arn=secrets.gemini_api_key.arn,
     image_tag="latest",
     tags=common_tags,
+)
+
+# =============================================================================
+# Sync Worker - SQS Consumer for Neo4j Synchronization
+# =============================================================================
+sync_worker = (
+    SyncWorkerComponent(
+        f"{environment}-sync-worker",
+        environment=environment,
+        vpc_id=vpc.vpc.id,
+        subnet_ids=vpc.private_subnet_ids,
+        ecr_repository_url=ecr.api_repository.repository_url,
+        sync_queue_arn=neo4j.sync_queue.arn if neo4j else pulumi.Output.from_input(""),
+        neo4j_secret_arn=neo4j.credentials_secret.arn
+        if neo4j
+        else pulumi.Output.from_input(""),
+        gemini_secret_arn=secrets.gemini_api_key.arn,
+        database_secret_arn=database.connection_secret.arn,
+        database_security_group_id=database.security_group.id,
+        image_tag="latest",
+        tags=common_tags,
+    )
+    if neo4j
+    else None
 )
 
 # =============================================================================
@@ -198,10 +247,38 @@ migration = MigrationComponent(
     tags=common_tags,
 )
 
+# Neo4j Migration Lambda - runs Neo4j schema migrations during deployment
+neo4j_migration = (
+    Neo4jMigrationComponent(
+        f"{environment}-neo4j-migration",
+        environment=environment,
+        vpc_id=vpc.vpc.id,
+        subnet_ids=vpc.private_subnet_ids,
+        ecr_repository_url=ecr.api_repository.repository_url,
+        neo4j_secret_arn=neo4j.credentials_secret.arn
+        if neo4j
+        else pulumi.Output.from_input(""),
+        image_tag="latest",
+        tags=common_tags,
+    )
+    if neo4j
+    else None
+)
+
 # API outputs
 pulumi.export("api_endpoint", api.api_endpoint)
 pulumi.export("api_function_name", api.function.name)
 pulumi.export("migration_function_name", migration.function.name)
+
+# Neo4j outputs (if configured)
+if neo4j:
+    pulumi.export("neo4j_credentials_secret_arn", neo4j.credentials_secret.arn)
+    pulumi.export("snippet_sync_queue_url", neo4j.sync_queue.url)
+    pulumi.export("snippet_sync_queue_arn", neo4j.sync_queue.arn)
+if neo4j_migration:
+    pulumi.export("neo4j_migration_function_name", neo4j_migration.function.name)
+if sync_worker:
+    pulumi.export("sync_worker_function_name", sync_worker.function.name)
 
 # Messaging outputs
 pulumi.export("execution_queue_url", messaging.queue.url)

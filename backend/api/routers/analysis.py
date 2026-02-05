@@ -11,6 +11,7 @@ from api.schemas.analysis import AnalyzeRequest, AnalyzeResponse
 from api.services.analyzer_service import AnalyzerService, get_analyzer_service
 from api.services.database import get_db
 from api.services.snippet_service import SnippetService
+from api.services.sync_service import SyncService, get_sync_service
 from api.services.user_service import UserService
 
 logger = logging.getLogger(__name__)
@@ -24,6 +25,7 @@ async def analyze_code(
     user: CognitoUser = Depends(get_current_user),
     analyzer: AnalyzerService = Depends(get_analyzer_service),
     db: AsyncSession = Depends(get_db),
+    sync_service: SyncService = Depends(get_sync_service),
 ) -> AnalyzeResponse:
     """Analyze Python code complexity using LLM.
 
@@ -31,7 +33,8 @@ async def analyze_code(
     analysis with explanations. Requires GEMINI_API_KEY to be configured.
 
     If snippet_id is provided and analysis succeeds, the complexity
-    results are persisted to the snippet.
+    results are persisted to the snippet and a sync event is enqueued
+    to update Neo4j.
     """
     result = await analyzer.analyze(request.code)
 
@@ -58,6 +61,11 @@ async def analyze_code(
                 logger.info(
                     f"Persisted complexity to snippet {request.snippet_id}: "
                     f"time={result.time_complexity}, space={result.space_complexity}"
+                )
+                # Enqueue sync event to update Neo4j
+                await sync_service.enqueue_analyzed(
+                    snippet_id=str(request.snippet_id),
+                    user_id=str(db_user.id),
                 )
             else:
                 logger.warning(

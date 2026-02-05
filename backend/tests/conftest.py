@@ -24,6 +24,14 @@ os.environ.setdefault("COGNITO_CLIENT_ID", "test-client-id")
 os.environ.setdefault("COGNITO_REGION", "us-east-1")
 os.environ.setdefault("DEV_AUTH_BYPASS", "false")  # Ensure auth is required in tests
 
+# Neo4j settings (optional - tests use mocks)
+os.environ.setdefault("NEO4J_URI", "")
+os.environ.setdefault("NEO4J_USERNAME", "neo4j")
+os.environ.setdefault("NEO4J_PASSWORD", "")
+os.environ.setdefault("NEO4J_DATABASE", "neo4j")
+os.environ.setdefault("GEMINI_EMBEDDING_MODEL", "text-embedding-004")
+os.environ.setdefault("SNIPPET_SYNC_QUEUE_URL", "")
+
 import pytest
 from fastapi.testclient import TestClient
 

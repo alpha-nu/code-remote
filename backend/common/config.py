@@ -103,6 +103,19 @@ class Settings(BaseSettings):
     execution_queue_url: str = ""  # SQS FIFO queue for async execution jobs
     websocket_endpoint: str = ""  # WebSocket API Gateway endpoint (wss://...)
 
+    # Neo4j AuraDB
+    neo4j_uri: str = ""  # e.g., neo4j+ssc://xxx.databases.neo4j.io:7687
+    neo4j_username: str = "neo4j"
+    neo4j_password: str = ""
+    neo4j_database: str = "neo4j"
+    neo4j_secret_arn: str = ""  # AWS Secrets Manager ARN for Neo4j credentials
+
+    # Embedding (Gemini text-embedding-004)
+    gemini_embedding_model: str = "text-embedding-004"
+
+    # Snippet Sync Queue (SQS FIFO)
+    snippet_sync_queue_url: str = ""  # SQS FIFO queue for Neo4j sync events
+
     # AWS Cognito Authentication
     cognito_user_pool_id: str = ""
     cognito_client_id: str = ""

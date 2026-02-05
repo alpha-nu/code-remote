@@ -22,6 +22,7 @@ COPY analyzer/ ./analyzer/
 COPY executor/ ./executor/
 COPY alembic/ ./alembic/
 COPY alembic.ini ./
+COPY neo4j_migrations/ ./neo4j_migrations/
 
 # Set the Lambda handler
 # Format: module.function

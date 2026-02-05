@@ -42,6 +42,7 @@ export interface SecurityViolation {
 
 export interface AnalyzeRequest {
   code: string;
+  snippet_id?: string;
 }
 
 export interface AnalyzeResponse {

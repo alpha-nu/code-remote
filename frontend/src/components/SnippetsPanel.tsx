@@ -236,14 +236,20 @@ export function SnippetsPanel() {
                   {snippet.description && (
                     <p className="snippet-description">{snippet.description}</p>
                   )}
-                  <div className="snippet-complexity">
-                    <span className="complexity-badge time">
-                      Time: {snippet.timeComplexity || 'O(n)'}
-                    </span>
-                    <span className="complexity-badge space">
-                      Space: {snippet.spaceComplexity || 'O(1)'}
-                    </span>
-                  </div>
+                  {(snippet.timeComplexity || snippet.spaceComplexity) && (
+                    <div className="snippet-complexity">
+                      {snippet.timeComplexity && (
+                        <span className="complexity-badge time">
+                          Time: {snippet.timeComplexity}
+                        </span>
+                      )}
+                      {snippet.spaceComplexity && (
+                        <span className="complexity-badge space">
+                          Space: {snippet.spaceComplexity}
+                        </span>
+                      )}
+                    </div>
+                  )}
                   <button
                     className={`snippet-star-wedge ${snippet.isStarred ? 'starred' : ''}`}
                     title={snippet.isStarred ? 'Remove from favorites' : 'Add to favorites'}

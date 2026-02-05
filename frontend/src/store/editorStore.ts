@@ -97,10 +97,15 @@ export const useEditorStore = create<EditorState>((set) => ({
 
   analyze: async () => {
     const { analyzeCode } = await import('../api/client');
+    const { useSnippetsStore } = await import('./snippetsStore');
     set({ isAnalyzing: true, analysis: null });
     try {
       const code = useEditorStore.getState().code;
-      const analysis = await analyzeCode({ code });
+      const snippetId = useSnippetsStore.getState().loadedSnippetId;
+      const analysis = await analyzeCode({
+        code,
+        snippet_id: snippetId ?? undefined,
+      });
       set({ analysis, lastAnalyzedCode: code });
     } catch {
       // ignore analysis errors

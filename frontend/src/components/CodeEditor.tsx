@@ -16,7 +16,7 @@ interface CodeEditorProps {
 
 export function CodeEditor({ connectionState = 'disconnected' }: CodeEditorProps) {
   const { code, setCode, isExecuting, result } = useEditorStore();
-  const { loadedSnippetId, loadedSnippetTitle, loadedSnippetCode } = useSnippetsStore();
+  const { loadedSnippetId, loadedSnippetTitle, loadedSnippetCode, clearLoadedSnippet } = useSnippetsStore();
   const { saveSnippet } = useAutoSave();
   const [theme, setTheme] = useState(() =>
     document.documentElement.classList.contains('light-theme') ? 'light' : 'vs-dark',
@@ -101,6 +101,13 @@ export function CodeEditor({ connectionState = 'disconnected' }: CodeEditorProps
             >
               <span className="status-dot" />
               {loadedSnippetTitle || 'Untitled'}
+              <button
+                className="snippet-eject-btn"
+                onClick={clearLoadedSnippet}
+                title="Eject snippet (keep code in editor)"
+              >
+                ⏏
+              </button>
             </span>
           )}
         </div>

@@ -466,6 +466,25 @@ input[type="checkbox"] {
   box-shadow: 0 0 4px rgba(245, 158, 11, 0.5);
 }
 
+.snippet-eject-btn {
+  margin-left: 8px;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 15px;
+  cursor: pointer;
+  padding: 0 4px;
+  opacity: 0.7;
+  transition: opacity 0.2s, transform 0.1s;
+  line-height: 1;
+}
+
+.snippet-eject-btn:hover {
+  opacity: 1;
+  color: var(--text-primary);
+  transform: translateY(-1px);
+}
+
 /* Floating keyboard hint shown inside the editor (top-right) */
 .editor-container .editor-hint {
   position: absolute;

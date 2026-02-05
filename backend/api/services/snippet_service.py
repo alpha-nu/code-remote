@@ -158,6 +158,8 @@ class SnippetService:
         language: str | None = None,
         description: str | None = None,
         is_starred: bool | None = None,
+        time_complexity: str | None = None,
+        space_complexity: str | None = None,
     ) -> Snippet | None:
         """Update an existing snippet.
 
@@ -169,6 +171,8 @@ class SnippetService:
             language: New language (if changing)
             description: New description (if changing)
             is_starred: New starred status (if changing)
+            time_complexity: Big O time complexity (if changing)
+            space_complexity: Big O space complexity (if changing)
 
         Returns:
             The updated Snippet if found and owned by user, None otherwise
@@ -187,6 +191,10 @@ class SnippetService:
             snippet.description = description
         if is_starred is not None:
             snippet.is_starred = is_starred
+        if time_complexity is not None:
+            snippet.time_complexity = time_complexity
+        if space_complexity is not None:
+            snippet.space_complexity = space_complexity
 
         await self.db.flush()
         await self.db.refresh(snippet)

@@ -1,5 +1,7 @@
 """Pydantic schemas for complexity analysis endpoint."""
 
+from uuid import UUID
+
 from pydantic import BaseModel, Field
 
 
@@ -11,6 +13,10 @@ class AnalyzeRequest(BaseModel):
         min_length=1,
         max_length=10240,
         description="Python code to analyze",
+    )
+    snippet_id: UUID | None = Field(
+        default=None,
+        description="Optional snippet ID to persist complexity results",
     )
 
 

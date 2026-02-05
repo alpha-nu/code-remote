@@ -1,11 +1,13 @@
 """Unit tests for the analysis endpoint."""
 
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import uuid4
 
 from api.auth.dependencies import get_current_user
 from api.auth.models import User
 from api.main import app
 from api.services.analyzer_service import get_analyzer_service
+from api.services.database import get_db
 
 # Test user for authenticated requests
 TEST_USER = User(
@@ -97,6 +99,100 @@ class TestAnalyzeEndpoint:
             json={"code": "for i in range(n): print(i)"},
         )
         assert response.status_code == 401
+
+    def test_analyze_with_snippet_id_persists_complexity(self, client):
+        """Test that analysis with snippet_id persists complexity to snippet."""
+        mock_service = MockAnalyzerService(available=True)
+        snippet_id = uuid4()
+
+        # Mock database session
+        mock_db = AsyncMock()
+
+        # Override dependencies
+        app.dependency_overrides[get_current_user] = lambda: TEST_USER
+        app.dependency_overrides[get_analyzer_service] = lambda: mock_service
+        app.dependency_overrides[get_db] = lambda: mock_db
+
+        try:
+            with (
+                patch("api.routers.analysis.UserService") as MockUserService,
+                patch("api.routers.analysis.SnippetService") as MockSnippetService,
+            ):
+                # Setup UserService mock
+                mock_user_service = AsyncMock()
+                mock_db_user = MagicMock()
+                mock_db_user.id = uuid4()
+                mock_user_service.get_or_create_from_cognito.return_value = mock_db_user
+                MockUserService.return_value = mock_user_service
+
+                # Setup SnippetService mock
+                mock_snippet_service = AsyncMock()
+                mock_snippet = MagicMock()
+                mock_snippet_service.update.return_value = mock_snippet
+                MockSnippetService.return_value = mock_snippet_service
+
+                response = client.post(
+                    "/analyze",
+                    json={
+                        "code": "for i in range(n): print(i)",
+                        "snippet_id": str(snippet_id),
+                    },
+                )
+
+                assert response.status_code == 200
+                data = response.json()
+                assert data["success"] is True
+                assert data["time_complexity"] == "O(n)"
+
+                # Verify snippet was updated with complexity
+                mock_snippet_service.update.assert_called_once()
+                call_kwargs = mock_snippet_service.update.call_args.kwargs
+                assert call_kwargs["snippet_id"] == snippet_id
+                assert call_kwargs["time_complexity"] == "O(n)"
+                assert call_kwargs["space_complexity"] == "O(1)"
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_analyze_with_snippet_id_not_found_still_returns_result(self, client):
+        """Test that analysis still returns result even if snippet not found."""
+        mock_service = MockAnalyzerService(available=True)
+        snippet_id = uuid4()
+
+        mock_db = AsyncMock()
+        app.dependency_overrides[get_current_user] = lambda: TEST_USER
+        app.dependency_overrides[get_analyzer_service] = lambda: mock_service
+        app.dependency_overrides[get_db] = lambda: mock_db
+
+        try:
+            with (
+                patch("api.routers.analysis.UserService") as MockUserService,
+                patch("api.routers.analysis.SnippetService") as MockSnippetService,
+            ):
+                mock_user_service = AsyncMock()
+                mock_db_user = MagicMock()
+                mock_db_user.id = uuid4()
+                mock_user_service.get_or_create_from_cognito.return_value = mock_db_user
+                MockUserService.return_value = mock_user_service
+
+                # Snippet not found - update returns None
+                mock_snippet_service = AsyncMock()
+                mock_snippet_service.update.return_value = None
+                MockSnippetService.return_value = mock_snippet_service
+
+                response = client.post(
+                    "/analyze",
+                    json={
+                        "code": "for i in range(n): print(i)",
+                        "snippet_id": str(snippet_id),
+                    },
+                )
+
+                # Analysis should still succeed
+                assert response.status_code == 200
+                data = response.json()
+                assert data["success"] is True
+        finally:
+            app.dependency_overrides.clear()
 
 
 class TestAnalyzeStatusEndpoint:

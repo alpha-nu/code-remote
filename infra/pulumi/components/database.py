@@ -76,26 +76,9 @@ class DatabaseComponent(pulumi.ComponentResource):
             opts=pulumi.ResourceOptions(parent=self),
         )
 
-        # Generate a random password for the database
-        db_password_secret = aws.secretsmanager.Secret(
-            f"{name}-db-password-secret",
-            name=f"code-remote/{environment}/db-password",
-            description="PostgreSQL master password",
-            tags=self.tags,
-            opts=pulumi.ResourceOptions(parent=self),
-        )
-
-        # Generate random password value
+        # Generate random password for the database
         password_chars = string.ascii_letters + string.digits
         generated_password = "".join(random.choices(password_chars, k=32))
-
-        # Store password in Secrets Manager
-        _db_password_value = aws.secretsmanager.SecretVersion(
-            f"{name}-db-password-value",
-            secret_id=db_password_secret.id,
-            secret_string=generated_password,
-            opts=pulumi.ResourceOptions(parent=self),
-        )
 
         # Choose database type based on environment
         if environment == "dev":
@@ -103,7 +86,7 @@ class DatabaseComponent(pulumi.ComponentResource):
         else:
             self._create_aurora_cluster(name, generated_password)
 
-        # Store full connection details in Secrets Manager
+        # Store full connection details in Secrets Manager (single secret with all info)
         self.connection_secret = aws.secretsmanager.Secret(
             f"{name}-connection-secret",
             name=f"code-remote/{environment}/db-connection",

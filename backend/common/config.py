@@ -1,5 +1,6 @@
 """Application configuration using Pydantic Settings."""
 
+import json
 from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -24,6 +25,28 @@ def get_secret_from_aws(secret_arn: str) -> str:
         response = client.get_secret_value(SecretId=secret_arn)
         return response.get("SecretString", "")
     except Exception:
+        return ""
+
+
+def get_database_url_from_aws(secret_arn: str) -> str:
+    """Fetch database URL from AWS Secrets Manager.
+
+    The database secret is stored as JSON with a 'url' field.
+
+    Args:
+        secret_arn: The ARN or name of the secret.
+
+    Returns:
+        The database URL, or empty string if not found.
+    """
+    secret_string = get_secret_from_aws(secret_arn)
+    if not secret_string:
+        return ""
+
+    try:
+        secret_data = json.loads(secret_string)
+        return secret_data.get("url", "")
+    except (json.JSONDecodeError, TypeError):
         return ""
 
 
@@ -94,7 +117,7 @@ class Settings(BaseSettings):
         if self.database_url:
             return self.database_url
         if self.database_secret_arn:
-            return get_secret_from_aws(self.database_secret_arn)
+            return get_database_url_from_aws(self.database_secret_arn)
         return ""
 
     @property

@@ -111,7 +111,7 @@ async def process_deleted_event(
     Returns:
         True if successful, False otherwise.
     """
-    await neo4j_service.delete_snippet(str(event.snippet_id))
+    neo4j_service.delete_snippet(str(event.snippet_id))
     logger.info(
         "Deleted snippet from Neo4j",
         extra={"snippet_id": str(event.snippet_id)},

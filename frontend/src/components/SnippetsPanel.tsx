@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react';
 import { useSnippets, useDeleteSnippet, useUpdateSnippet } from '../hooks/useSnippets';
 import { useEditorStore } from '../store/editorStore';
 import { useSnippetsStore } from '../store/snippetsStore';
+import { snippetsApi } from '../api/snippets';
 import { AddSnippetModal } from './AddSnippetModal';
 import type { SnippetSummary } from '../types/api';
 import spinner from '../assets/spinner.svg';
@@ -53,16 +54,8 @@ export function SnippetsPanel() {
     // Fetch code if expanding and we don't have it cached
     if (newSelected && !snippetCodes[id]) {
       try {
-        const response = await fetch(`http://localhost:8000/snippets/${id}`, {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}`,
-          },
-        });
-
-        if (response.ok) {
-          const snippet = await response.json();
-          setSnippetCodes(prev => ({ ...prev, [id]: snippet.code }));
-        }
+        const snippet = await snippetsApi.get(id);
+        setSnippetCodes(prev => ({ ...prev, [id]: snippet.code }));
       } catch (err) {
         console.error('Failed to fetch snippet code:', err);
       }
@@ -116,17 +109,7 @@ export function SnippetsPanel() {
 
     try {
       // Fetch full snippet (including code)
-      const response = await fetch(`http://localhost:8000/snippets/${snippetId}`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to load snippet');
-      }
-
-      const snippet = await response.json();
+      const snippet = await snippetsApi.get(snippetId);
       setCode(snippet.code);
       setLoadedSnippet(snippetId, snippet.title || 'Untitled', snippet.code);
     } catch (err) {

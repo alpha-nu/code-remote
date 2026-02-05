@@ -89,6 +89,15 @@ class Settings(BaseSettings):
     dev_auth_bypass: bool = False
 
     @property
+    def resolved_database_url(self) -> str:
+        """Get database URL, fetching from Secrets Manager if needed."""
+        if self.database_url:
+            return self.database_url
+        if self.database_secret_arn:
+            return get_secret_from_aws(self.database_secret_arn)
+        return ""
+
+    @property
     def resolved_gemini_api_key(self) -> str:
         """Get Gemini API key, fetching from Secrets Manager if needed."""
         if self.gemini_api_key:

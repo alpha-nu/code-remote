@@ -36,7 +36,7 @@ def get_url() -> str:
         return url
 
     # Fall back to settings (which may load from Secrets Manager)
-    return settings.database_url
+    return settings.resolved_database_url
 
 
 def run_migrations_offline() -> None:

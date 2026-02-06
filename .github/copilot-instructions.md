@@ -3,8 +3,8 @@
 ## Project Overview
 Remote Code Execution Engine: Users write Python code in a web interface, we execute it securely and return results with AI-powered complexity analysis.
 
-**Architecture:** Hybrid (Managed Services + Self-hosted K8s Execution)  
-**Cloud:** AWS (initial), designed for cloud-agnostic migration  
+**Architecture:** Serverless (Lambda + API Gateway + Aurora PostgreSQL)  
+**Cloud:** AWS  
 **Auth:** AWS Cognito | **LLM:** Google Gemini | **Timeout:** 30s max
 
 ---
@@ -15,11 +15,11 @@ code-remote/
 ├── frontend/          # React + Monaco Editor
 ├── backend/
 │   ├── api/           # FastAPI services
-│   ├── executor/      # Sandboxed Python runner
+│   ├── executor/      # Sandboxed Python runner  
 │   ├── analyzer/      # Gemini LLM complexity analysis
 │   └── common/        # Shared utilities
 ├── infra/pulumi/      # Infrastructure as Code (Python)
-└── kubernetes/        # K8s manifests for execution cluster
+└── docs/              # Architecture documentation
 ```
 
 ---
@@ -65,10 +65,10 @@ class AWSQueue(QueueProvider):  # Initial implementation
 - **Auth:** AWS Amplify for Cognito integration
 
 ### Execution Sandbox Security Layers
-1. **Container:** gVisor runtime (`runsc`) for kernel isolation
-2. **Network:** K8s NetworkPolicy denying all egress
-3. **Resources:** CPU 0.1 core, Memory 256MB, Timeout 30s
-4. **Python:** Restricted imports whitelist (no `os`, `subprocess`, `socket`)
+1. **AST Validation** - Pre-execution import/pattern checking
+2. **Restricted Builtins** - No eval, exec, open, __import__
+3. **Import Whitelist** - Only safe modules allowed
+4. **Lambda Isolation** - Ephemeral execution, timeout enforcement
 
 ---
 
@@ -281,7 +281,7 @@ GEMINI_API_KEY=your-api-key-here
 
 - Hardcode AWS-specific services in business logic (use abstractions)
 - Store secrets in code or Pulumi config (use AWS Secrets Manager)
-- Allow arbitrary imports in executor (whitelist only: `math`, `json`, `collections`, `itertools`, `functools`, `typing`, `dataclasses`, `random`, `string`, `re`, `datetime`, `decimal`, `fractions`, `statistics`, `operator`, `copy`, `heapq`, `bisect`, `array`, `enum`)
+- Allow arbitrary imports in executor (whitelist only: `math`, `cmath`, `json`, `collections`, `itertools`, `functools`, `typing`, `dataclasses`, `random`, `string`, `re`, `datetime`, `decimal`, `fractions`, `statistics`, `operator`, `copy`, `heapq`, `bisect`, `array`, `enum`, `abc`, `time`, `calendar`, `csv`, `textwrap`, `pprint`)
 - Skip input validation on code submissions (max 10KB, UTF-8 only)
 - Run executor containers with network access in production
 
@@ -293,4 +293,4 @@ GEMINI_API_KEY=your-api-key-here
 - `backend/executor/runner.py` - Core sandboxed execution logic
 - `backend/executor/security.py` - Import restrictions, AST validation
 - `infra/pulumi/__main__.py` - Infrastructure entry point
-- `kubernetes/base/executor/` - Execution pod specs with gVisor
+- `infra/pulumi/components/` - Pulumi resource components

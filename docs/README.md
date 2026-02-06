@@ -1,132 +1,57 @@
-# Code Remote Documentation
+# Code Remote - Documentation
 
-> **Remote Code Execution Engine** - Secure Python execution with AI-powered complexity analysis
+## Overview
 
----
+Remote Code Execution Engine: Users write Python code in a web interface, we execute it securely and return results with AI-powered complexity analysis.
 
-## Quick Navigation
+## Documentation Structure
 
-| Section | Description |
-|---------|-------------|
-| [Architecture](architecture/) | System design, components, technology stack |
-| [Deployment](deployment/) | CI/CD, releases, local development |
-| [Diagrams](diagrams/) | Visual architecture diagrams |
-
----
-
-## Architecture Documentation
-
-| Document | Description |
-|----------|-------------|
-| [Overview](architecture/overview.md) | High-level architecture, tech stack, design decisions |
-| [Backend](architecture/backend.md) | FastAPI application, services, API design |
-| [Frontend](architecture/frontend.md) | React app, components, state management |
-| [Infrastructure](architecture/infrastructure.md) | AWS resources, Pulumi IaC |
-| [Security](architecture/security.md) | Sandbox design, security layers |
-| [Data Model](architecture/data-model.md) | PostgreSQL + Neo4j schemas |
-
----
-
-## Deployment Documentation
-
-| Document | Description |
-|----------|-------------|
-| [CI/CD Pipeline](deployment/ci-cd.md) | GitHub Actions workflow |
-| [Release Strategy](deployment/release-strategy.md) | Versioning, environments |
-| [Local Development](deployment/local-development.md) | Docker Compose setup |
-
----
-
-## System Overview
-
-```mermaid
-flowchart TB
-    subgraph Client
-        Browser[React + Monaco Editor]
-    end
-
-    subgraph AWS
-        CF[CloudFront] --> S3[(S3)]
-        APIGW[API Gateway] --> Lambda[Lambda]
-        Lambda --> Aurora[(PostgreSQL)]
-        Lambda --> SQS[SQS]
-        SQS --> Worker[Worker]
-    end
-
-    subgraph External
-        Neo4j[(Neo4j)]
-        Gemini[Gemini]
-    end
-
-    Browser --> CF
-    Browser --> APIGW
-    Lambda --> Gemini
-    Worker --> Neo4j
+```
+docs/
+├── README.md                    # This file - documentation index
+├── architecture-plan.md         # Comprehensive architecture & planning document
+├── deployment.md                # Deployment procedures
+├── release-strategy.md          # Versioning and release workflows
+├── future-decisions.md          # Deferred decisions and future plans
+│
+├── architecture/                # Detailed architecture documents
+│   ├── overview.md              # System architecture & decisions
+│   ├── security.md              # Security model & sandbox design
+│   ├── data-model.md            # Database schemas & data flow
+│   └── infrastructure.md        # AWS/Pulumi infrastructure details
+│
+└── phases/                      # Implementation phase details
+    └── README.md                # Phase progress & implementation details
 ```
 
----
+## Quick Links
+
+| Document | Description |
+|----------|-------------|
+| [Architecture Plan](architecture-plan.md) | Comprehensive architecture, phases, decisions |
+| [Architecture Overview](architecture/overview.md) | System design, tech stack, component overview |
+| [Security Model](architecture/security.md) | Sandbox security, import restrictions, resource limits |
+| [Phase Progress](phases/README.md) | Implementation phases, current: Phase 9 |
+| [Deployment Guide](deployment.md) | How to deploy to AWS |
+| [Release Strategy](release-strategy.md) | Versioning, tagging, and release workflows |
+
+## Current Status
+
+| Phase | Name | Status |
+|-------|------|--------|
+| 1-8 | Foundation through Security | ✅ Complete |
+| **9** | **Persistence (PostgreSQL + Neo4j)** | **🔄 In Progress** |
+| 10 | Real-Time Async Execution | ✅ Complete |
 
 ## Technology Stack
 
-| Layer | Technology |
-|-------|------------|
-| Frontend | React 18, TypeScript, Monaco Editor, Zustand |
-| Backend | FastAPI, Python 3.11, SQLAlchemy, Pydantic |
-| Database | Aurora PostgreSQL, Neo4j AuraDB |
-| Infrastructure | AWS Lambda, API Gateway, SQS, CloudFront |
+| Component | Technology |
+|-----------|------------|
+| Frontend | React 18 + Monaco Editor + AWS Amplify |
+| Backend | FastAPI + AWS Lambda (Mangum) |
+| Auth | AWS Cognito |
+| Queue | AWS SQS FIFO |
+| Database | Aurora PostgreSQL (CRUD) + Neo4j AuraDB (search) |
+| Real-time | API Gateway WebSocket |
 | LLM | Google Gemini API |
 | IaC | Pulumi (Python) |
-| CI/CD | GitHub Actions |
-
----
-
-## Quick Start
-
-### Local Development
-```bash
-# Option 1: Docker Compose
-docker compose up -d
-# Frontend: http://localhost:3000
-# Backend: http://localhost:8000
-
-# Option 2: Manual
-cd backend && uvicorn api.main:app --reload --port 8000
-cd frontend && npm run dev
-```
-
-### Deploy
-```bash
-# Deploy to dev
-git push origin main
-
-# Deploy to prod
-git tag v1.0.0 && git push origin v1.0.0
-```
-
----
-
-## Project Structure
-
-```
-code-remote/
-├── frontend/           # React + Monaco Editor
-├── backend/
-│   ├── api/            # FastAPI application
-│   ├── executor/       # Sandboxed Python runner
-│   ├── analyzer/       # Gemini LLM integration
-│   └── common/         # Shared utilities
-├── infra/pulumi/       # Infrastructure as Code
-├── docs/               # Documentation (you are here)
-└── .github/workflows/  # CI/CD pipelines
-```
-
----
-
-## Key Features
-
-- **Monaco Editor** - VS Code's editor with Python syntax
-- **Secure Execution** - Sandboxed with import restrictions
-- **AI Analysis** - Gemini-powered complexity analysis
-- **Real-Time** - WebSocket execution updates
-- **Snippets** - Save, star, and search code
-- **Semantic Search** - Vector-based code search via Neo4j

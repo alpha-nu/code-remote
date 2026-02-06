@@ -1,4 +1,4 @@
-"""Embedding service using Gemini text-embedding model.
+"""Embedding service using Gemini embedding model.
 
 Generates vector embeddings for semantic search.
 """
@@ -6,6 +6,7 @@ Generates vector embeddings for semantic search.
 import logging
 
 from google import genai
+from google.genai import types
 
 from common.config import settings
 
@@ -44,10 +45,11 @@ class EmbeddingService:
         """
         model = f"models/{settings.gemini_embedding_model}"
 
-        # Use embed_content for embedding generation
+        # Use embed_content for embedding generation with 768 dimensions
         response = self.client.models.embed_content(
             model=model,
             contents=text,
+            config=types.EmbedContentConfig(output_dimensionality=768),
         )
 
         # Extract embedding from response
@@ -69,6 +71,7 @@ class EmbeddingService:
         response = self.client.models.embed_content(
             model=model,
             contents=text,
+            config=types.EmbedContentConfig(output_dimensionality=768),
         )
 
         embedding = response.embeddings[0].values

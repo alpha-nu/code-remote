@@ -43,7 +43,7 @@ class TestEmbeddingService:
 
         mock_client.models.embed_content.assert_called_once()
         call_kwargs = mock_client.models.embed_content.call_args[1]
-        assert "text-embedding-004" in call_kwargs["model"]
+        assert "gemini-embedding-001" in call_kwargs["model"]
         assert call_kwargs["contents"] == "hello world"
 
     def test_generate_embedding_sync_returns_vector(self, service):

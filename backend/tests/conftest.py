@@ -29,7 +29,7 @@ os.environ.setdefault("NEO4J_URI", "")
 os.environ.setdefault("NEO4J_USERNAME", "neo4j")
 os.environ.setdefault("NEO4J_PASSWORD", "")
 os.environ.setdefault("NEO4J_DATABASE", "neo4j")
-os.environ.setdefault("GEMINI_EMBEDDING_MODEL", "text-embedding-004")
+os.environ.setdefault("GEMINI_EMBEDDING_MODEL", "gemini-embedding-001")
 os.environ.setdefault("SNIPPET_SYNC_QUEUE_URL", "")
 
 import pytest

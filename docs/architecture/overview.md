@@ -1,160 +1,254 @@
-# Architecture Overview
+# System Architecture Overview
 
 ## Mission
 
-Build a secure, scalable, cloud-agnostic remote code execution platform that allows users to write Python code in a web interface, execute it safely, and receive results along with AI-powered complexity analysis.
+Build a secure, scalable, cloud-native remote code execution platform that allows users to write Python code in a web interface, execute it safely, and receive AI-powered complexity analysis.
 
-## Architecture Choice: Hybrid
+---
 
-We use a **hybrid architecture** combining managed AWS services with controlled execution:
+## Architecture Style
 
-- **API Layer**: Managed (API Gateway + Lambda)
-- **Execution**: Lambda-based sandboxed execution (with future K8s option)
-- **Data**: Managed databases (DynamoDB, future Aurora)
-- **Queue**: Managed SQS FIFO
-- **Real-time**: API Gateway WebSocket
+**Serverless Hybrid Architecture**
 
+| Layer | Approach | Services |
+|-------|----------|----------|
+| **API** | Fully Managed | API Gateway (HTTP + WebSocket) + Lambda |
+| **Compute** | Serverless | AWS Lambda with container images |
+| **Data** | Hybrid Managed | Aurora PostgreSQL + Neo4j AuraDB |
+| **Frontend** | Static CDN | S3 + CloudFront |
+| **Auth** | Managed | AWS Cognito |
+
+---
+
+## High-Level Architecture
+
+```mermaid
+flowchart TB
+    subgraph Client
+        Browser[React + Monaco Editor]
+    end
+
+    subgraph AWS["AWS Cloud"]
+        subgraph Edge["Edge Layer"]
+            CF[CloudFront CDN]
+            S3[(S3 Bucket)]
+        end
+
+        subgraph API["API Layer"]
+            APIGW[API Gateway<br/>HTTP + WebSocket]
+            Cognito[Cognito<br/>User Pool]
+        end
+
+        subgraph Compute["Compute Layer"]
+            APILambda[API Lambda<br/>FastAPI]
+            Worker[Worker Lambda<br/>Executor]
+            SyncWorker[Sync Worker<br/>Neo4j CDC]
+        end
+
+        subgraph Messaging
+            ExecQueue[(SQS FIFO<br/>Execution)]
+            SyncQueue[(SQS FIFO<br/>Snippet Sync)]
+        end
+
+        subgraph Data["Data Layer"]
+            Aurora[(Aurora PostgreSQL<br/>Source of Truth)]
+            Neo4j[(Neo4j AuraDB<br/>Vector Search)]
+            Secrets[Secrets Manager]
+        end
+    end
+
+    subgraph External
+        Gemini[Google Gemini API]
+    end
+
+    Browser --> CF --> S3
+    Browser <--> APIGW
+    APIGW --> Cognito
+    APIGW <--> APILambda
+    APIGW <--> Worker
+    
+    APILambda --> Aurora
+    APILambda --> ExecQueue
+    APILambda --> SyncQueue
+    APILambda --> Gemini
+    
+    ExecQueue --> Worker
+    Worker --> Aurora
+    
+    SyncQueue --> SyncWorker
+    SyncWorker --> Aurora
+    SyncWorker --> Neo4j
+    SyncWorker --> Gemini
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                              Code Remote                                    │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  ┌─────────────┐    ┌──────────────────┐    ┌─────────────────────────┐   │
-│  │  Frontend   │    │   API Gateway    │    │   Lambda (FastAPI)      │   │
-│  │  React +    │───▶│   HTTP + WS      │───▶│   - /execute            │   │
-│  │  Monaco     │    │                  │    │   - /analyze            │   │
-│  └─────────────┘    └──────────────────┘    │   - /jobs               │   │
-│        │                    │               └───────────┬─────────────┘   │
-│        │                    │                           │                 │
-│        │ WebSocket          │                           ▼                 │
-│        │                    │               ┌─────────────────────────┐   │
-│        │                    │               │      SQS FIFO Queue     │   │
-│        │                    │               └───────────┬─────────────┘   │
-│        │                    │                           │                 │
-│        │                    │                           ▼                 │
-│        │                    │               ┌─────────────────────────┐   │
-│        │◀───────────────────┼───────────────│    Worker Lambda        │   │
-│        │   Push results     │               │    - Execute code       │   │
-│        │                    │               │    - Push via WebSocket │   │
-│                             │               └───────────┬─────────────┘   │
-│                             │                           │                 │
-│                             │                           ▼                 │
-│  ┌──────────────────────────┴───────────────────────────────────────────┐ │
-│  │                         Data Layer                                    │ │
-│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  │ │
-│  │  │  Cognito    │  │  DynamoDB   │  │   Gemini    │  │  CloudWatch │  │ │
-│  │  │  Auth       │  │  Jobs       │  │   LLM API   │  │  Logs       │  │ │
-│  │  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘  │ │
-│  └───────────────────────────────────────────────────────────────────────┘ │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
 
-## Key Decisions
-
-| Decision | Choice | Rationale |
-|----------|--------|-----------|
-| Architecture | Hybrid | Balance of managed services + execution control |
-| Frontend | React + Monaco Editor | Industry standard, VS Code's editor |
-| Authentication | AWS Cognito | Native AWS integration, managed service |
-| LLM Provider | Google Gemini | API key auth only, no GCP setup required |
-| Execution Timeout | 30 seconds | Allows complex computations while limiting abuse |
-| Initial Cloud | AWS | Mature ecosystem, Cognito integration |
-| Real-time | WebSocket | Instant feedback, better than polling |
+---
 
 ## Technology Stack
 
-| Component | Technology |
-|-----------|------------|
-| Frontend | React 18 + Monaco Editor + AWS Amplify |
-| API Layer | AWS API Gateway (HTTP + WebSocket) |
-| Backend | FastAPI + Mangum (Lambda adapter) |
-| Execution | Lambda-based sandbox with restricted imports |
-| Queue | AWS SQS FIFO |
-| Database | DynamoDB (jobs), Aurora PostgreSQL (future) |
-| Auth | AWS Cognito |
-| LLM | Google Gemini API |
-| IaC | Pulumi (Python) |
-| CI/CD | GitHub Actions |
+| Component | Technology | Purpose |
+|-----------|------------|---------|
+| **Frontend** | React 18 + TypeScript | Web application |
+| **Editor** | Monaco Editor | Code editing (VS Code's editor) |
+| **State** | Zustand + React Query | Client state management |
+| **API** | FastAPI + Mangum | Python async API on Lambda |
+| **Execution** | Lambda sandbox | Isolated code execution |
+| **Queue** | SQS FIFO | Ordered job processing |
+| **Real-time** | API Gateway WebSocket | Live execution updates |
+| **Auth** | AWS Cognito | User authentication |
+| **Database** | Aurora PostgreSQL Serverless v2 | Primary data store |
+| **Search** | Neo4j AuraDB | Vector/semantic search |
+| **LLM** | Google Gemini API | Complexity analysis + embeddings |
+| **IaC** | Pulumi (Python) | Infrastructure as Code |
+| **CI/CD** | GitHub Actions | Automated deployment |
 
-## Project Structure
-
-```
-code-remote/
-├── frontend/           # React + Monaco Editor
-│   ├── src/
-│   │   ├── components/ # UI components
-│   │   ├── hooks/      # Custom React hooks
-│   │   ├── store/      # Zustand state management
-│   │   └── api/        # API client
-│   └── package.json
-│
-├── backend/
-│   ├── api/            # FastAPI application
-│   │   ├── routers/    # Route handlers
-│   │   ├── schemas/    # Pydantic models
-│   │   ├── services/   # Business logic
-│   │   ├── auth/       # Cognito integration
-│   │   └── handlers/   # Lambda handlers (WebSocket)
-│   ├── executor/       # Sandboxed Python runner
-│   ├── analyzer/       # Gemini LLM integration
-│   ├── common/         # Shared utilities
-│   └── tests/
-│
-├── infra/pulumi/       # Infrastructure as Code
-│   ├── components/     # Reusable Pulumi components
-│   └── __main__.py     # Entry point
-│
-└── docs/               # Documentation
-```
+---
 
 ## Component Responsibilities
 
-### Frontend
-- Monaco Editor with Python syntax highlighting
-- WebSocket connection for real-time updates
-- Auth flow via Cognito/Amplify
-- State management with Zustand + React Query
+### Frontend (React + Monaco)
+- Browser-based code editor with Python syntax highlighting
+- WebSocket connection for real-time execution updates
+- Authentication flow via Cognito
+- Snippet management UI (save, load, star, search)
 
 ### API Lambda (FastAPI)
-- Request validation and auth
-- Job submission to SQS
-- Job status queries from DynamoDB
-- Complexity analysis via Gemini
+- Request validation and JWT authentication
+- Synchronous endpoints: `/health`, `/analyze`
+- Async execution: queue jobs to SQS, return job ID
+- CRUD operations for snippets → PostgreSQL
+- Trigger Neo4j sync on snippet changes
 
-### Worker Lambda
-- Consumes jobs from SQS
-- Executes code in sandbox
-- Updates job status in DynamoDB
-- Pushes results via WebSocket
+### Worker Lambda (Executor)
+- Consumes jobs from SQS FIFO queue
+- Executes code in security sandbox
+- Pushes results via WebSocket Management API
+- Stores execution results in PostgreSQL
 
-### WebSocket Handlers
-- Manage persistent connections
-- Route job updates to clients
-- Handle subscribe/unsubscribe
+### Sync Worker Lambda (Neo4j CDC)
+- Consumes snippet change events from SQS
+- Fetches snippet from PostgreSQL
+- Generates embeddings via Gemini
+- Runs complexity analysis via Gemini
+- Upserts to Neo4j with embeddings + complexity
+
+---
 
 ## Data Flow
 
 ### Code Execution Flow
-```
-1. User writes code in Monaco Editor
-2. Frontend POSTs to /execute with JWT
-3. API Lambda validates, creates job in DynamoDB, sends to SQS
-4. API returns job_id immediately (~100ms)
-5. Frontend subscribes to WebSocket for job_id
-6. Worker Lambda picks up job from SQS
-7. Worker updates status to "running", pushes via WebSocket
-8. Worker executes code in sandbox
-9. Worker updates result, pushes final status via WebSocket
-10. Frontend displays result in real-time
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant F as Frontend
+    participant WS as WebSocket
+    participant API as API Lambda
+    participant Q as SQS Queue
+    participant W as Worker Lambda
+    participant DB as PostgreSQL
+
+    U->>F: Write code, click Run
+    F->>WS: Connect, get connection_id
+    F->>API: POST /execute/async<br/>{code, connection_id}
+    API->>API: Validate JWT
+    API->>Q: Enqueue job
+    API-->>F: {job_id, status: "queued"}
+    
+    Q->>W: Consume message
+    W->>W: Execute in sandbox
+    W->>WS: Push result via Management API
+    WS-->>F: Real-time result
+    W->>DB: Store result (optional)
+    F->>U: Display output
 ```
 
-### Analysis Flow
+### Snippet Save + Sync Flow
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant API as API Lambda
+    participant PG as PostgreSQL
+    participant SQ as Sync Queue
+    participant SW as Sync Worker
+    participant Gemini as Gemini API
+    participant Neo as Neo4j
+
+    U->>API: POST /snippets {title, code}
+    API->>PG: INSERT snippet
+    API->>SQ: Enqueue {event: "snippet.created", id}
+    API-->>U: {id, title, ...}
+    
+    Note over SQ,SW: Async (seconds later)
+    SQ->>SW: Consume event
+    SW->>PG: Fetch snippet by ID
+    SW->>Gemini: Generate embedding
+    SW->>Gemini: Analyze complexity
+    SW->>Neo: MERGE Snippet node<br/>with embedding + complexity
 ```
-1. User clicks "Analyze"
-2. Frontend POSTs to /analyze with code
-3. API Lambda calls Gemini API with complexity prompt
-4. Gemini returns time/space complexity analysis
-5. API returns analysis result
-6. Frontend displays complexity info
-```
+
+---
+
+## Key Design Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| **Serverless** | Lambda + API Gateway | Zero ops, auto-scaling, pay-per-use |
+| **Dual Database** | PostgreSQL + Neo4j | Relational CRUD + vector search |
+| **Async Execution** | SQS + WebSocket | Non-blocking, real-time feedback |
+| **LLM Provider** | Google Gemini | API key only, no GCP project setup |
+| **Execution Timeout** | 30 seconds | Balance between power and abuse prevention |
+| **CDC Pattern** | Queue-based | Decouples API from sync, retry built-in |
+
+---
+
+## Project Structure
+
+\`\`\`
+code-remote/
+├── frontend/                # React + Monaco Editor
+│   ├── src/
+│   │   ├── components/      # UI components
+│   │   ├── hooks/           # Custom React hooks
+│   │   ├── store/           # Zustand state
+│   │   ├── api/             # API client
+│   │   └── types/           # TypeScript types
+│   └── package.json
+│
+├── backend/
+│   ├── api/                 # FastAPI application
+│   │   ├── routers/         # Route handlers
+│   │   ├── schemas/         # Pydantic models
+│   │   ├── services/        # Business logic
+│   │   ├── models/          # SQLAlchemy models
+│   │   ├── auth/            # Cognito integration
+│   │   └── handlers/        # Lambda handlers
+│   ├── executor/            # Sandboxed Python runner
+│   ├── analyzer/            # Gemini LLM integration
+│   ├── neo4j_migrations/    # Neo4j schema migrations
+│   ├── alembic/             # PostgreSQL migrations
+│   ├── common/              # Shared utilities
+│   └── tests/               # Unit/integration tests
+│
+├── infra/pulumi/            # Infrastructure as Code
+│   ├── components/          # Reusable Pulumi components
+│   ├── Pulumi.*.yaml        # Stack configurations
+│   └── __main__.py          # Entry point
+│
+├── docs/                    # Documentation
+│   ├── architecture/        # Architecture docs
+│   ├── deployment/          # Deployment guides
+│   └── diagrams/            # Visual diagrams
+│
+└── .github/workflows/       # CI/CD pipelines
+\`\`\`
+
+---
+
+## Related Documents
+
+- [Backend Architecture](backend.md) - FastAPI services and API design
+- [Frontend Architecture](frontend.md) - React application structure
+- [Infrastructure](infrastructure.md) - AWS resources and Pulumi IaC
+- [Security Model](security.md) - Sandbox and security layers
+- [Data Model](data-model.md) - PostgreSQL and Neo4j schemas

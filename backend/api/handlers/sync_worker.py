@@ -2,6 +2,8 @@
 
 This handler processes SQS messages from the snippet-sync queue,
 generates embeddings, and syncs snippets to Neo4j.
+
+Uses fully synchronous operations to avoid Lambda event loop issues.
 """
 
 import json
@@ -13,7 +15,7 @@ from sqlalchemy import select
 from api.models.snippet import Snippet
 from api.models.user import User
 from api.schemas.sync import SnippetSyncEvent
-from api.services.database import get_session_factory
+from api.services.database import get_sync_session_factory
 from api.services.embedding_service import EmbeddingService
 from api.services.neo4j_service import Neo4jService, get_neo4j_driver
 
@@ -22,7 +24,7 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 
-async def process_analyzed_event(
+def process_analyzed_event(
     event: SnippetSyncEvent,
     neo4j_service: Neo4jService,
     embedding_service: EmbeddingService,
@@ -39,10 +41,10 @@ async def process_analyzed_event(
     Returns:
         True if successful, False otherwise.
     """
-    factory = get_session_factory()
-    async with factory() as session:
+    factory = get_sync_session_factory()
+    with factory() as session:
         # Fetch snippet with user info
-        result = await session.execute(
+        result = session.execute(
             select(Snippet, User)
             .join(User, Snippet.user_id == User.id)
             .where(Snippet.id == event.snippet_id)
@@ -67,8 +69,8 @@ async def process_analyzed_event(
             code=snippet.code,
         )
 
-        # Generate embedding
-        embedding = await embedding_service.generate_embedding(embedding_input)
+        # Generate embedding (sync)
+        embedding = embedding_service.generate_embedding_sync(embedding_input)
         if not embedding:
             logger.error(
                 "Failed to generate embedding",
@@ -96,7 +98,7 @@ async def process_analyzed_event(
         return True
 
 
-async def process_deleted_event(
+def process_deleted_event(
     event: SnippetSyncEvent,
     neo4j_service: Neo4jService,
 ) -> bool:
@@ -119,7 +121,7 @@ async def process_deleted_event(
     return True
 
 
-async def process_event(
+def process_event(
     event: SnippetSyncEvent,
     neo4j_service: Neo4jService,
     embedding_service: EmbeddingService,
@@ -135,9 +137,9 @@ async def process_event(
         True if successful, False otherwise.
     """
     if event.event_type == "snippet.analyzed":
-        return await process_analyzed_event(event, neo4j_service, embedding_service)
+        return process_analyzed_event(event, neo4j_service, embedding_service)
     elif event.event_type == "snippet.deleted":
-        return await process_deleted_event(event, neo4j_service)
+        return process_deleted_event(event, neo4j_service)
     else:
         logger.warning(
             "Unknown event type",
@@ -150,6 +152,7 @@ def handler(event: dict, context: Any) -> dict:
     """Lambda handler for SQS sync events.
 
     Processes batch of SQS messages, each containing a SnippetSyncEvent.
+    Uses fully synchronous processing to avoid Lambda event loop issues.
 
     Args:
         event: Lambda event with SQS records.
@@ -158,8 +161,6 @@ def handler(event: dict, context: Any) -> dict:
     Returns:
         Batch item failures for partial batch retry.
     """
-    import asyncio
-
     # Initialize services
     driver = get_neo4j_driver()
     neo4j_service = Neo4jService(driver)
@@ -168,16 +169,14 @@ def handler(event: dict, context: Any) -> dict:
     records = event.get("Records", [])
     batch_item_failures = []
 
-    async def process_all():
-        nonlocal batch_item_failures
-
+    try:
         for record in records:
             message_id = record.get("messageId", "unknown")
             try:
                 body = json.loads(record.get("body", "{}"))
                 sync_event = SnippetSyncEvent.model_validate(body)
 
-                success = await process_event(sync_event, neo4j_service, embedding_service)
+                success = process_event(sync_event, neo4j_service, embedding_service)
 
                 if not success:
                     batch_item_failures.append({"itemIdentifier": message_id})
@@ -192,9 +191,6 @@ def handler(event: dict, context: Any) -> dict:
                     exc_info=True,
                 )
                 batch_item_failures.append({"itemIdentifier": message_id})
-
-    try:
-        asyncio.run(process_all())
     finally:
         driver.close()
 

@@ -1,7 +1,7 @@
 """Unit tests for the sync worker handler."""
 
 import json
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 from uuid import UUID
 
 import pytest
@@ -66,7 +66,8 @@ class TestProcessAnalyzedEvent:
         """Create a mock embedding service."""
         mock = MagicMock()
         mock.build_snippet_embedding_input.return_value = "embedding input text"
-        mock.generate_embedding = AsyncMock(return_value=[0.1] * 768)
+        # generate_embedding_sync is used in sync worker
+        mock.generate_embedding_sync = MagicMock(return_value=[0.1] * 768)
         return mock
 
     @pytest.fixture
@@ -77,67 +78,60 @@ class TestProcessAnalyzedEvent:
             user_id=UUID("660e8400-e29b-41d4-a716-446655440001"),
         )
 
-    @pytest.mark.asyncio
-    async def test_process_analyzed_success(self, mock_neo4j, mock_embedding, analyzed_event):
+    def test_process_analyzed_success(self, mock_neo4j, mock_embedding, analyzed_event):
         """Test successful processing of analyzed event."""
         snippet = MockSnippet()
         user = MockUser()
 
-        with patch("api.handlers.sync_worker.get_session_factory") as mock_factory:
-            # Mock the database session factory
+        with patch("api.handlers.sync_worker.get_sync_session_factory") as mock_factory:
+            # Mock the sync database session factory
             mock_session = MagicMock()
             mock_result = MagicMock()
             mock_result.first.return_value = (snippet, user)
-            mock_session.execute = AsyncMock(return_value=mock_result)
-            mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-            mock_session.__aexit__ = AsyncMock(return_value=None)
+            mock_session.execute = MagicMock(return_value=mock_result)
+            mock_session.__enter__ = MagicMock(return_value=mock_session)
+            mock_session.__exit__ = MagicMock(return_value=None)
             mock_factory.return_value = MagicMock(return_value=mock_session)
 
-            result = await process_analyzed_event(analyzed_event, mock_neo4j, mock_embedding)
+            result = process_analyzed_event(analyzed_event, mock_neo4j, mock_embedding)
 
         assert result is True
         mock_embedding.build_snippet_embedding_input.assert_called_once()
-        mock_embedding.generate_embedding.assert_called_once()
+        mock_embedding.generate_embedding_sync.assert_called_once()
         mock_neo4j.upsert_snippet.assert_called_once()
 
-    @pytest.mark.asyncio
-    async def test_process_analyzed_snippet_not_found(
-        self, mock_neo4j, mock_embedding, analyzed_event
-    ):
+    def test_process_analyzed_snippet_not_found(self, mock_neo4j, mock_embedding, analyzed_event):
         """Test handling when snippet is not found in database."""
-        with patch("api.handlers.sync_worker.get_session_factory") as mock_factory:
+        with patch("api.handlers.sync_worker.get_sync_session_factory") as mock_factory:
             mock_session = MagicMock()
             mock_result = MagicMock()
             mock_result.first.return_value = None  # Snippet not found
-            mock_session.execute = AsyncMock(return_value=mock_result)
-            mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-            mock_session.__aexit__ = AsyncMock(return_value=None)
+            mock_session.execute = MagicMock(return_value=mock_result)
+            mock_session.__enter__ = MagicMock(return_value=mock_session)
+            mock_session.__exit__ = MagicMock(return_value=None)
             mock_factory.return_value = MagicMock(return_value=mock_session)
 
-            result = await process_analyzed_event(analyzed_event, mock_neo4j, mock_embedding)
+            result = process_analyzed_event(analyzed_event, mock_neo4j, mock_embedding)
 
         assert result is False
         mock_neo4j.upsert_snippet.assert_not_called()
 
-    @pytest.mark.asyncio
-    async def test_process_analyzed_embedding_failure(
-        self, mock_neo4j, mock_embedding, analyzed_event
-    ):
+    def test_process_analyzed_embedding_failure(self, mock_neo4j, mock_embedding, analyzed_event):
         """Test handling when embedding generation fails."""
         snippet = MockSnippet()
         user = MockUser()
-        mock_embedding.generate_embedding.return_value = None  # Embedding fails
+        mock_embedding.generate_embedding_sync.return_value = None  # Embedding fails
 
-        with patch("api.handlers.sync_worker.get_session_factory") as mock_factory:
+        with patch("api.handlers.sync_worker.get_sync_session_factory") as mock_factory:
             mock_session = MagicMock()
             mock_result = MagicMock()
             mock_result.first.return_value = (snippet, user)
-            mock_session.execute = AsyncMock(return_value=mock_result)
-            mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-            mock_session.__aexit__ = AsyncMock(return_value=None)
+            mock_session.execute = MagicMock(return_value=mock_result)
+            mock_session.__enter__ = MagicMock(return_value=mock_session)
+            mock_session.__exit__ = MagicMock(return_value=None)
             mock_factory.return_value = MagicMock(return_value=mock_session)
 
-            result = await process_analyzed_event(analyzed_event, mock_neo4j, mock_embedding)
+            result = process_analyzed_event(analyzed_event, mock_neo4j, mock_embedding)
 
         assert result is False
         mock_neo4j.upsert_snippet.assert_not_called()
@@ -162,10 +156,9 @@ class TestProcessDeletedEvent:
             user_id=UUID("660e8400-e29b-41d4-a716-446655440001"),
         )
 
-    @pytest.mark.asyncio
-    async def test_process_deleted_success(self, mock_neo4j, deleted_event):
+    def test_process_deleted_success(self, mock_neo4j, deleted_event):
         """Test successful processing of deleted event."""
-        result = await process_deleted_event(deleted_event, mock_neo4j)
+        result = process_deleted_event(deleted_event, mock_neo4j)
 
         assert result is True
         mock_neo4j.delete_snippet.assert_called_once_with("550e8400-e29b-41d4-a716-446655440000")
@@ -178,8 +171,8 @@ class TestProcessEvent:
     def mock_neo4j(self):
         """Create a mock Neo4j service."""
         mock = MagicMock()
-        mock.upsert_snippet = AsyncMock()
-        mock.delete_snippet = AsyncMock()
+        mock.upsert_snippet = MagicMock()
+        mock.delete_snippet = MagicMock(return_value=True)
         return mock
 
     @pytest.fixture
@@ -187,11 +180,10 @@ class TestProcessEvent:
         """Create a mock embedding service."""
         mock = MagicMock()
         mock.build_snippet_embedding_input.return_value = "text"
-        mock.generate_embedding = AsyncMock(return_value=[0.1] * 768)
+        mock.generate_embedding_sync = MagicMock(return_value=[0.1] * 768)
         return mock
 
-    @pytest.mark.asyncio
-    async def test_process_event_routes_analyzed(self, mock_neo4j, mock_embedding):
+    def test_process_event_routes_analyzed(self, mock_neo4j, mock_embedding):
         """Test that analyzed events are routed correctly."""
         event = SnippetSyncEvent.analyzed(
             snippet_id=UUID("550e8400-e29b-41d4-a716-446655440000"),
@@ -200,16 +192,14 @@ class TestProcessEvent:
 
         with patch(
             "api.handlers.sync_worker.process_analyzed_event",
-            new_callable=AsyncMock,
         ) as mock_process:
             mock_process.return_value = True
-            result = await process_event(event, mock_neo4j, mock_embedding)
+            result = process_event(event, mock_neo4j, mock_embedding)
 
         assert result is True
         mock_process.assert_called_once()
 
-    @pytest.mark.asyncio
-    async def test_process_event_routes_deleted(self, mock_neo4j, mock_embedding):
+    def test_process_event_routes_deleted(self, mock_neo4j, mock_embedding):
         """Test that deleted events are routed correctly."""
         event = SnippetSyncEvent.deleted(
             snippet_id=UUID("550e8400-e29b-41d4-a716-446655440000"),
@@ -218,16 +208,14 @@ class TestProcessEvent:
 
         with patch(
             "api.handlers.sync_worker.process_deleted_event",
-            new_callable=AsyncMock,
         ) as mock_process:
             mock_process.return_value = True
-            result = await process_event(event, mock_neo4j, mock_embedding)
+            result = process_event(event, mock_neo4j, mock_embedding)
 
         assert result is True
         mock_process.assert_called_once()
 
-    @pytest.mark.asyncio
-    async def test_process_event_handles_unknown_type(self, mock_neo4j, mock_embedding):
+    def test_process_event_handles_unknown_type(self, mock_neo4j, mock_embedding):
         """Test that unknown event types return False."""
         # Create an event with an invalid type (using model_construct to bypass validation)
         event = SnippetSyncEvent.model_construct(
@@ -237,7 +225,7 @@ class TestProcessEvent:
             timestamp="2026-02-05T10:30:00Z",
         )
 
-        result = await process_event(event, mock_neo4j, mock_embedding)
+        result = process_event(event, mock_neo4j, mock_embedding)
 
         assert result is False
 
@@ -282,7 +270,6 @@ class TestLambdaHandler:
                 with patch("api.handlers.sync_worker.EmbeddingService"):
                     with patch(
                         "api.handlers.sync_worker.process_event",
-                        new_callable=AsyncMock,
                     ) as mock_process:
                         mock_process.return_value = True
 
@@ -300,7 +287,6 @@ class TestLambdaHandler:
                 with patch("api.handlers.sync_worker.EmbeddingService"):
                     with patch(
                         "api.handlers.sync_worker.process_event",
-                        new_callable=AsyncMock,
                     ) as mock_process:
                         # First succeeds, second fails
                         mock_process.side_effect = [True, False]

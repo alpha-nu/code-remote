@@ -11,7 +11,9 @@ from collections.abc import AsyncGenerator
 from contextvars import ContextVar
 
 import boto3
+from sqlalchemy import create_engine
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.orm import Session, sessionmaker
 
 from common.config import settings
 
@@ -23,6 +25,8 @@ _session_context: ContextVar[AsyncSession | None] = ContextVar("db_session", def
 # Global engine (initialized lazily)
 _engine = None
 _session_factory = None
+_sync_engine = None
+_sync_session_factory = None
 
 
 def _get_database_url() -> str:
@@ -89,6 +93,58 @@ def get_session_factory() -> async_sessionmaker[AsyncSession]:
         )
 
     return _session_factory
+
+
+def _get_sync_database_url() -> str:
+    """Convert async database URL to sync URL.
+
+    Replaces postgresql+asyncpg:// with postgresql+psycopg2://
+    """
+    async_url = _get_database_url()
+    # Convert asyncpg URL to psycopg2 URL
+    if "asyncpg" in async_url:
+        return async_url.replace("postgresql+asyncpg", "postgresql+psycopg2")
+    elif async_url.startswith("postgresql://"):
+        return async_url.replace("postgresql://", "postgresql+psycopg2://")
+    return async_url
+
+
+def get_sync_engine():
+    """Get or create the sync database engine.
+
+    Uses lazy initialization and connection pooling optimized for Lambda.
+    """
+    global _sync_engine
+
+    if _sync_engine is None:
+        url = _get_sync_database_url()
+
+        # Lambda-optimized pool settings
+        _sync_engine = create_engine(
+            url,
+            pool_size=1,
+            max_overflow=0,
+            pool_pre_ping=True,
+            echo=settings.debug,
+        )
+
+    return _sync_engine
+
+
+def get_sync_session_factory() -> sessionmaker[Session]:
+    """Get or create the sync session factory."""
+    global _sync_session_factory
+
+    if _sync_session_factory is None:
+        engine = get_sync_engine()
+        _sync_session_factory = sessionmaker(
+            engine,
+            class_=Session,
+            expire_on_commit=False,
+            autoflush=False,
+        )
+
+    return _sync_session_factory
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:

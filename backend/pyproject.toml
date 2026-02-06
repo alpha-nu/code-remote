@@ -25,6 +25,7 @@ dependencies = [
     # Database
     "sqlalchemy[asyncio]>=2.0.0",
     "asyncpg>=0.29.0",  # PostgreSQL async driver
+    "psycopg2-binary>=2.9.0",  # PostgreSQL sync driver (for Lambda sync worker)
     "alembic>=1.13.0",  # Database migrations
     # Neo4j
     "neo4j>=5.0.0",     # Neo4j Python driver

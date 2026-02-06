@@ -6,19 +6,34 @@ Analyze the following Python code and determine its time and space complexity.
 ```
 
 ## Instructions:
-1. Identify the main algorithm or operations in the code
-2. Analyze the time complexity using Big O notation
-3. Analyze the space complexity using Big O notation
-4. Provide a brief explanation for each
+1. Identify the main algorithm or operations
+2. Determine time complexity (Big O notation)
+3. Determine space complexity (Big O notation)
+4. Keep explanations VERY brief (1-2 sentences max each)
 
-## Response format (respond ONLY with this JSON structure, no markdown):
+## CRITICAL: Response constraints
+- MAXIMUM 500 tokens total
+- Each explanation: 1-2 sentences ONLY
+- No verbose descriptions - be concise and technical
+- Respond ONLY with valid JSON, no markdown code blocks
+- Empty suggestions array unless truly critical
+
+## Response format:
 {{
   "time_complexity": "O(...)",
   "space_complexity": "O(...)",
-  "time_explanation": "Brief explanation of why this time complexity",
-  "space_explanation": "Brief explanation of why this space complexity",
-  "algorithm_identified": "Name or description of the main algorithm if recognizable",
-  "suggestions": ["Optional improvement suggestions"]
+  "time_explanation": "One brief sentence.",
+  "space_explanation": "One brief sentence.",
+  "algorithm_identified": "Algorithm name or null",
+  "suggestions": []
 }}
 
-Be precise and technical. If the code has multiple functions, analyze the overall complexity considering typical usage patterns.
+Example of ideal brevity:
+{{
+  "time_complexity": "O(n²)",
+  "space_complexity": "O(1)",
+  "time_explanation": "Nested loops over input array.",
+  "space_explanation": "Only constant extra variables used.",
+  "algorithm_identified": "Bubble sort",
+  "suggestions": []
+}}

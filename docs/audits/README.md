@@ -2,6 +2,10 @@
 
 This folder contains periodic AWS infrastructure audits comparing deployed resources against Pulumi state and documentation.
 
+## Quick Start
+
+See [runbook.md](runbook.md) for step-by-step audit commands.
+
 ## Purpose
 
 - Identify orphaned/rogue resources not managed by IaC

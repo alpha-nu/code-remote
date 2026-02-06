@@ -192,7 +192,7 @@ class SyncWorkerComponent(pulumi.ComponentResource):
                     "NEO4J_SECRET_ARN": neo4j_secret_arn,
                     "GEMINI_API_KEY_SECRET_ARN": gemini_secret_arn,
                     "DATABASE_SECRET_ARN": database_secret_arn,
-                    "GEMINI_EMBEDDING_MODEL": "text-embedding-004",
+                    "GEMINI_EMBEDDING_MODEL": "gemini-embedding-001",
                 },
             ),
             tags=self.tags,

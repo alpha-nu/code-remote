@@ -220,6 +220,7 @@ class Neo4jService:
 
         // Upsert snippet
         MERGE (s:Snippet {id: $snippet_id})
+        ON CREATE SET s.created_at = datetime()
         SET s.title = $title,
             s.description = $description,
             s.code = $code,
@@ -227,7 +228,6 @@ class Neo4jService:
             s.embedding = $embedding,
             s.updated_at = datetime(),
             s.synced_at = datetime()
-        ON CREATE SET s.created_at = datetime()
 
         // Link to user
         MERGE (s)-[:OWNED_BY]->(u)

@@ -107,6 +107,14 @@ class SyncWorkerComponent(pulumi.ComponentResource):
             opts=pulumi.ResourceOptions(parent=self),
         )
 
+        # X-Ray tracing policy
+        aws.iam.RolePolicyAttachment(
+            f"{name}-xray",
+            role=self.role.name,
+            policy_arn="arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess",
+            opts=pulumi.ResourceOptions(parent=self),
+        )
+
         # SQS access policy
         sqs_policy = aws.iam.Policy(
             f"{name}-sqs-policy",
@@ -194,6 +202,9 @@ class SyncWorkerComponent(pulumi.ComponentResource):
                     "DATABASE_SECRET_ARN": database_secret_arn,
                     "GEMINI_EMBEDDING_MODEL": "gemini-embedding-001",
                 },
+            ),
+            tracing_config=aws.lambda_.FunctionTracingConfigArgs(
+                mode="Active",
             ),
             tags=self.tags,
             opts=pulumi.ResourceOptions(parent=self),

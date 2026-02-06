@@ -9,6 +9,7 @@ from google import genai
 from google.genai import types
 
 from common.config import settings
+from common.tracing import add_llm_response_attributes, llm_span
 
 logger = logging.getLogger(__name__)
 
@@ -46,14 +47,27 @@ class EmbeddingService:
         model = f"models/{settings.gemini_embedding_model}"
 
         # Use embed_content for embedding generation with 768 dimensions
-        response = self.client.models.embed_content(
-            model=model,
-            contents=text,
-            config=types.EmbedContentConfig(output_dimensionality=768),
-        )
+        with llm_span(
+            "embed_content",
+            settings.gemini_embedding_model,
+            prompt=text[:500],  # Truncate for tracing
+            operation_type="embedding",
+        ) as span:
+            response = self.client.models.embed_content(
+                model=model,
+                contents=text,
+                config=types.EmbedContentConfig(output_dimensionality=768),
+            )
 
-        # Extract embedding from response
-        embedding = response.embeddings[0].values
+            # Extract embedding from response
+            embedding = response.embeddings[0].values
+
+            # Add response details to span
+            add_llm_response_attributes(
+                span,
+                embedding_dimensions=len(embedding),
+            )
+
         logger.debug(f"Generated embedding with {len(embedding)} dimensions")
         return list(embedding)
 
@@ -68,13 +82,25 @@ class EmbeddingService:
         """
         model = f"models/{settings.gemini_embedding_model}"
 
-        response = self.client.models.embed_content(
-            model=model,
-            contents=text,
-            config=types.EmbedContentConfig(output_dimensionality=768),
-        )
+        with llm_span(
+            "embed_content",
+            settings.gemini_embedding_model,
+            prompt=text[:500],  # Truncate for tracing
+            operation_type="embedding_sync",
+        ) as span:
+            response = self.client.models.embed_content(
+                model=model,
+                contents=text,
+                config=types.EmbedContentConfig(output_dimensionality=768),
+            )
 
-        embedding = response.embeddings[0].values
+            embedding = response.embeddings[0].values
+
+            add_llm_response_attributes(
+                span,
+                embedding_dimensions=len(embedding),
+            )
+
         logger.debug(f"Generated embedding with {len(embedding)} dimensions")
         return list(embedding)
 

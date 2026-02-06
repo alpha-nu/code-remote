@@ -90,6 +90,14 @@ class ServerlessAPIComponent(pulumi.ComponentResource):
             opts=pulumi.ResourceOptions(parent=self),
         )
 
+        # X-Ray tracing policy
+        aws.iam.RolePolicyAttachment(
+            f"{name}-xray",
+            role=self.role.name,
+            policy_arn="arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess",
+            opts=pulumi.ResourceOptions(parent=self),
+        )
+
         # Secrets Manager access policy (Gemini API key + Database connection)
         # Use broader resource pattern to allow all code-remote secrets
         secrets_policy = aws.iam.Policy(
@@ -190,6 +198,9 @@ class ServerlessAPIComponent(pulumi.ComponentResource):
                 security_group_ids=[self.security_group.id],
             ),
             environment=aws.lambda_.FunctionEnvironmentArgs(variables=lambda_env_vars),
+            tracing_config=aws.lambda_.FunctionTracingConfigArgs(
+                mode="Active",
+            ),
             tags=self.tags,
             opts=pulumi.ResourceOptions(parent=self, depends_on=[self.log_group]),
         )

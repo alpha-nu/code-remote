@@ -9,6 +9,7 @@ from google.genai import types
 
 from analyzer.llm_provider import ComplexityResult, LLMProvider
 from common.config import settings
+from common.tracing import add_llm_response_attributes, llm_span
 
 logger = logging.getLogger(__name__)
 
@@ -93,17 +94,32 @@ Respond with JSON only:
         try:
             prompt = self._load_prompt_template().format(code=code)
 
-            # Generate response using the new SDK async API
-            response = await self._client.aio.models.generate_content(
-                model=self._model,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    temperature=0.1,  # Low temperature for consistent analysis
-                    max_output_tokens=2048,  # Increased for detailed responses
-                ),
-            )
+            # Generate response using the new SDK async API with tracing
+            with llm_span(
+                "generate_content",
+                self._model or "unknown",
+                prompt=prompt,
+                operation_type="complexity_analysis",
+            ) as span:
+                response = await self._client.aio.models.generate_content(
+                    model=self._model,
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        temperature=0.1,  # Low temperature for consistent analysis
+                        max_output_tokens=2048,  # Increased for detailed responses
+                    ),
+                )
 
-            raw_text = response.text.strip() if response.text else ""
+                raw_text = response.text.strip() if response.text else ""
+
+                # Add response attributes to span
+                add_llm_response_attributes(
+                    span,
+                    response_truncated=raw_text[:200] if raw_text else None,
+                    finish_reason=str(response.candidates[0].finish_reason)
+                    if response.candidates
+                    else None,
+                )
 
             # Log raw response for debugging
             logger.debug(f"Raw Gemini response: {repr(raw_text)}")

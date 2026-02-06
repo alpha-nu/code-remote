@@ -90,6 +90,14 @@ class Neo4jMigrationComponent(pulumi.ComponentResource):
             opts=pulumi.ResourceOptions(parent=self),
         )
 
+        # X-Ray tracing policy
+        aws.iam.RolePolicyAttachment(
+            f"{name}-xray",
+            role=self.role.name,
+            policy_arn="arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess",
+            opts=pulumi.ResourceOptions(parent=self),
+        )
+
         # Secrets Manager access policy for Neo4j credentials
         secrets_policy = aws.iam.Policy(
             f"{name}-secrets-policy",
@@ -138,6 +146,9 @@ class Neo4jMigrationComponent(pulumi.ComponentResource):
                 variables={
                     "NEO4J_SECRET_ARN": neo4j_secret_arn,
                 },
+            ),
+            tracing_config=aws.lambda_.FunctionTracingConfigArgs(
+                mode="Active",
             ),
             tags=self.tags,
             opts=pulumi.ResourceOptions(parent=self),

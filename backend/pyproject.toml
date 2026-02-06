@@ -29,6 +29,8 @@ dependencies = [
     "alembic>=1.13.0",  # Database migrations
     # Neo4j
     "neo4j>=5.0.0",     # Neo4j Python driver
+    # AWS X-Ray for LLM observability
+    "aws-xray-sdk>=2.12.0",
 ]
 
 [project.optional-dependencies]

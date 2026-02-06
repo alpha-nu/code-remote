@@ -91,6 +91,14 @@ class MigrationComponent(pulumi.ComponentResource):
             opts=pulumi.ResourceOptions(parent=self),
         )
 
+        # X-Ray tracing policy
+        aws.iam.RolePolicyAttachment(
+            f"{name}-xray",
+            role=self.role.name,
+            policy_arn="arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess",
+            opts=pulumi.ResourceOptions(parent=self),
+        )
+
         # Secrets Manager access policy for database credentials
         secrets_policy = aws.iam.Policy(
             f"{name}-secrets-policy",
@@ -153,6 +161,9 @@ class MigrationComponent(pulumi.ComponentResource):
                     "DATABASE_SECRET_ARN": database_secret_arn,
                     "ENVIRONMENT": environment,
                 }
+            ),
+            tracing_config=aws.lambda_.FunctionTracingConfigArgs(
+                mode="Active",
             ),
             tags=self.tags,
             opts=pulumi.ResourceOptions(parent=self, depends_on=[self.log_group]),

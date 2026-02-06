@@ -110,7 +110,7 @@ pytest backend/tests/e2e/ --env=staging
 
 ```bash
 # 1. Install tools
-brew install pulumi awscli kubectl
+brew install pulumi awscli
 
 # 2. Configure AWS credentials
 aws configure  # Enter access key, secret, region (us-east-1)
@@ -191,22 +191,6 @@ git push origin v1.0.0
 # Manual deployment (via GitHub UI)
 # Go to Actions → Deploy → Run workflow → Select environment
 ```
-git push origin release/staging
-
-# Promote to prod (after staging verification)
-git checkout release/prod
-git merge release/staging
-git push origin release/prod
-```
-
-### Required GitHub Secrets
-
-| Secret | Description |
-|--------|-------------|
-| `AWS_ACCESS_KEY_ID` | AWS IAM access key with deployment permissions |
-| `AWS_SECRET_ACCESS_KEY` | AWS IAM secret key |
-| `PULUMI_ACCESS_TOKEN` | Pulumi Cloud token (or use `PULUMI_CONFIG_PASSPHRASE` for local backend) |
-| `GEMINI_API_KEY` | Google Gemini API key |
 
 ### Required GitHub Secrets
 

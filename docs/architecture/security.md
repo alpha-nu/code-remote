@@ -46,9 +46,9 @@ Code Remote executes untrusted user code. Security is enforced at multiple layer
 Only these modules can be imported by user code:
 
 ```python
-SAFE_IMPORTS = {
+ALLOWED_IMPORTS = {
     # Math & Numbers
-    "math", "decimal", "fractions", "statistics", "random",
+    "math", "cmath", "decimal", "fractions", "random", "statistics",
     
     # Data Structures
     "collections", "heapq", "bisect", "array",
@@ -57,21 +57,24 @@ SAFE_IMPORTS = {
     "itertools", "functools", "operator",
     
     # Text
-    "string", "re",
+    "string", "re", "textwrap",
     
     # Data Formats
-    "json",
+    "json", "csv",
     
-    # Time (read-only)
-    "datetime",
+    # Time
+    "datetime", "calendar", "time",
     
     # Type System
-    "typing", "dataclasses", "enum",
+    "typing", "dataclasses", "enum", "abc",
     
     # Utilities
-    "copy",
+    "copy", "pprint",
 }
 ```
+
+> Some modules (`time`, `random`, `functools`, `re`, `decimal`) are wrapped with 
+> resource limits to prevent abuse (e.g., max regex input length, max cache size).
 
 ### Blocked Modules (Examples)
 - `os`, `sys` - System access
@@ -229,5 +232,5 @@ All executions are logged:
 | Sandbox | AST validation | ✅ |
 | Sandbox | Timeout enforcement | ✅ |
 | Lambda | Memory limits | ✅ |
-| Lambda | VPC isolation | 📋 Phase 10 |
+| Lambda | VPC isolation | ✅ |
 | Lambda | IAM least-privilege | ✅ |

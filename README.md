@@ -27,9 +27,11 @@ Code Remote provides a safe environment for running untrusted Python code. Wheth
 | **Monaco Editor** | VS Code's editor with Python syntax highlighting and autocomplete |
 | **Secure Execution** | Sandboxed Python runner with import restrictions and resource limits |
 | **AI Analysis** | Google Gemini-powered time/space complexity analysis |
+| **Code Snippets** | Save, organize, and star your code snippets |
+| **Semantic Search** | Natural language search powered by Neo4j vector embeddings |
 | **Real-Time Results** | WebSocket-based live execution updates |
 | **Authentication** | AWS Cognito user management |
-| **Cloud Native** | Pulumi IaC, GitHub Actions CI/CD, AWS infrastructure |
+| **Cloud Native** | Pulumi IaC, GitHub Actions CI/CD, serverless AWS infrastructure |
 
 ## Architecture
 
@@ -37,14 +39,14 @@ Code Remote provides a safe environment for running untrusted Python code. Wheth
 ┌──────────────────┐     ┌──────────────────┐     ┌──────────────────┐
 │     Frontend     │────▶│   API Gateway    │────▶│  Lambda/FastAPI  │
 │  React + Monaco  │     │   (HTTP + WS)    │     │                  │
-└──────────────────┘     └──────────────────┘     └────────┬─────────┘
+└──────────────────┘     └──────────────────┘     └──────────────────┘
                                                            │
-                              ┌─────────────────┬──────────┴──────────┐
-                              ▼                 ▼                      ▼
-                    ┌──────────────┐   ┌──────────────┐      ┌──────────────┐
-                    │   Executor   │   │   Analyzer   │      │   Cognito    │
-                    │  (Sandbox)   │   │   (Gemini)   │      │    (Auth)    │
-                    └──────────────┘   └──────────────┘      └──────────────┘
+              ┌─────────────────┬──────────┴──────────┬─────────────────┐
+              ▼                 ▼                    ▼                 ▼
+    ┌────────────┐   ┌────────────┐      ┌────────────┐   ┌────────────┐
+    │  Executor  │   │  Analyzer  │      │  PostgreSQL │   │   Neo4j    │
+    │  (Sandbox) │   │  (Gemini)  │      │   (Aurora)  │   │  (Vector)  │
+    └────────────┘   └────────────┘      └────────────┘   └────────────┘
 ```
 
 ---
@@ -187,6 +189,7 @@ code-remote/
 │   │   ├── routers/       # HTTP endpoints
 │   │   ├── schemas/       # Pydantic models
 │   │   ├── services/      # Business logic
+│   │   ├── models/        # SQLAlchemy models
 │   │   └── auth/          # Cognito integration
 │   ├── executor/          # Sandboxed Python runner
 │   ├── analyzer/          # Gemini LLM integration
@@ -196,9 +199,11 @@ code-remote/
 │   ├── components/        # Reusable Pulumi components
 │   └── Pulumi.*.yaml      # Environment configs
 │
-└── docs/                  # Architecture documentation
+└── docs/                  # Documentation
     ├── architecture/      # System design docs
-    └── phases/            # Implementation phases
+    ├── deployment/        # CI/CD, release, local dev
+    ├── diagrams/          # Architecture diagrams
+    └── audits/            # Infrastructure audit reports
 ```
 
 ---
@@ -209,7 +214,7 @@ The execution sandbox enforces multiple security layers:
 
 | Layer | Protection |
 |-------|------------|
-| **Import Whitelist** | Only safe modules: `math`, `json`, `collections`, `itertools`, `functools`, `typing`, `dataclasses`, `datetime`, `re`, `random`, `string`, `decimal`, `fractions`, `statistics`, `heapq`, `bisect`, `copy`, `enum`, `operator` |
+| **Import Whitelist** | Only safe modules: `math`, `cmath`, `json`, `csv`, `collections`, `itertools`, `functools`, `typing`, `dataclasses`, `datetime`, `time`, `calendar`, `re`, `random`, `string`, `decimal`, `fractions`, `statistics`, `heapq`, `bisect`, `array`, `copy`, `enum`, `abc`, `operator`, `textwrap`, `pprint` |
 | **Restricted Builtins** | Blocked: `eval`, `exec`, `open`, `__import__`, `compile`, `globals`, `locals` |
 | **AST Validation** | Dangerous patterns detected at parse time |
 | **Resource Limits** | 256MB memory, 30s timeout, no network access |
@@ -218,13 +223,33 @@ The execution sandbox enforces multiple security layers:
 
 ## API Reference
 
+### Execution
+
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/health` | GET | Health check |
-| `/execute` | POST | Execute Python code (returns job_id) |
-| `/execute/jobs/{id}` | GET | Get job status and result |
+| `/execute` | POST | Execute Python code synchronously |
+| `/execute/async` | POST | Queue code for async execution (returns job_id) |
+
+### Snippets
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/snippets` | GET | List user's snippets |
+| `/snippets` | POST | Create a new snippet |
+| `/snippets/{id}` | GET | Get snippet by ID |
+| `/snippets/{id}` | PUT | Update a snippet |
+| `/snippets/{id}` | DELETE | Delete a snippet |
+
+### Analysis & Search
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
 | `/analyze` | POST | AI complexity analysis |
 | `/analyze/status` | GET | Check LLM configuration |
+| `/search` | GET | Semantic search (natural language) |
+| `/search/similar/{id}` | GET | Find similar snippets |
+| `/search/patterns` | GET | Browse code patterns |
 
 ---
 
@@ -234,12 +259,14 @@ For detailed architecture and design decisions:
 
 | Document | Description |
 |----------|-------------|
-| [Architecture Plan](docs/architecture-plan.md) | High-level system overview |
-| [System Overview](docs/architecture/overview.md) | Detailed component design |
-| [Security Model](docs/architecture/security.md) | Sandbox security layers |
-| [Data Model](docs/architecture/data-model.md) | Database schemas and API contracts |
+| [Architecture Overview](docs/architecture/overview.md) | High-level system design |
+| [Backend Architecture](docs/architecture/backend.md) | FastAPI services and API design |
+| [Frontend Architecture](docs/architecture/frontend.md) | React components and state |
 | [Infrastructure](docs/architecture/infrastructure.md) | AWS/Pulumi resource details |
-| [Phase 10: Real-Time](docs/phases/phase-10-realtime.md) | WebSocket async execution |
+| [Security Model](docs/architecture/security.md) | Sandbox security layers |
+| [Data Model](docs/architecture/data-model.md) | PostgreSQL + Neo4j schemas |
+| [CI/CD Pipeline](docs/deployment/ci-cd.md) | GitHub Actions workflow |
+| [Local Development](docs/deployment/local-development.md) | Docker Compose setup |
 
 ---
 

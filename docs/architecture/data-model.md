@@ -2,132 +2,230 @@
 
 ## Overview
 
-Code Remote uses a hybrid data architecture:
+Code Remote uses a dual-database architecture:
 
-| Store | Purpose | Phase |
-|-------|---------|-------|
-| **DynamoDB** | WebSocket connections (stateless) | 10 |
-| **Aurora PostgreSQL** | User data, snippet CRUD (source of truth) | 9.1 |
-| **Neo4j AuraDB** | Vector embeddings, semantic search, patterns | 9.2+ |
+| Store | Purpose | Status |
+|-------|---------|--------|
+| **Aurora PostgreSQL** | User data, snippets, executions (source of truth) | ✅ Deployed |
+| **Neo4j AuraDB** | Vector embeddings, semantic search | ✅ Deployed |
 
-The PostgreSQL → Neo4j sync uses EventBridge CDC (Change Data Capture).
+Data flows from PostgreSQL → Neo4j via SQS-based CDC (Change Data Capture).
 
-## DynamoDB Tables
+> **Note:** DynamoDB is **not used**. All persistent data is in PostgreSQL.
 
-### Jobs Table
+---
 
-Stores execution job state and results.
+## PostgreSQL Schema
 
+### Users Table
+
+Synced from Cognito on first API interaction.
+
+```sql
+CREATE TABLE users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    cognito_sub VARCHAR(255) UNIQUE NOT NULL,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    username VARCHAR(255),
+    last_login TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_users_cognito_sub ON users(cognito_sub);
+CREATE INDEX idx_users_email ON users(email);
 ```
-Table: code-remote-{env}-jobs
-────────────────────────────────────────────────────────────
 
-Primary Key:
-  - Partition Key: job_id (String, UUID)
+### Snippets Table
 
-GSI: user_id-created_at-index
-  - Partition Key: user_id (String)
-  - Sort Key: created_at (String, ISO timestamp)
-  - Projection: ALL
+Code snippets with analysis results.
 
-TTL: ttl (Number, Unix timestamp)
-  - Auto-delete after 24 hours
+```sql
+CREATE TABLE snippets (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
+    title VARCHAR(255),
+    language VARCHAR(50) NOT NULL DEFAULT 'python',
+    code TEXT NOT NULL,
+    description TEXT,
+    
+    -- Execution tracking
+    last_execution_at TIMESTAMPTZ,
+    execution_count INTEGER NOT NULL DEFAULT 0,
+    
+    -- User organization
+    is_starred BOOLEAN NOT NULL DEFAULT FALSE,
+    
+    -- LLM complexity analysis results
+    time_complexity VARCHAR(50),
+    space_complexity VARCHAR(50),
+    
+    -- Timestamps
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
 
-Attributes:
-┌─────────────────────┬───────────┬──────────────────────────────┐
-│ Attribute           │ Type      │ Description                  │
-├─────────────────────┼───────────┼──────────────────────────────┤
-│ job_id              │ String    │ UUID, primary key            │
-│ user_id             │ String    │ Cognito sub                  │
-│ status              │ String    │ pending|running|completed|failed │
-│ code                │ String    │ Submitted code               │
-│ timeout_seconds     │ Number    │ Max execution time           │
-│ created_at          │ String    │ ISO timestamp                │
-│ started_at          │ String    │ When execution started       │
-│ completed_at        │ String    │ When execution finished      │
-│ result              │ Map       │ Execution result (see below) │
-│ ttl                 │ Number    │ Unix timestamp for deletion  │
-└─────────────────────┴───────────┴──────────────────────────────┘
+-- Indexes
+CREATE INDEX idx_snippets_user_id ON snippets(user_id);
+CREATE INDEX ix_snippets_user_starred_updated 
+    ON snippets(user_id, is_starred DESC, updated_at DESC);
+```
 
-Result Map Structure:
-{
-  "success": Boolean,
-  "stdout": String,
-  "stderr": String,
-  "error": String | null,
-  "error_type": String | null,
-  "execution_time_ms": Number,
-  "timed_out": Boolean
+---
+
+## SQLAlchemy Models
+
+### User Model
+
+```python
+class User(Base, TimestampMixin):
+    __tablename__ = "users"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID, primary_key=True, default=uuid.uuid4)
+    cognito_sub: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    username: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    last_login: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    
+    snippets: Mapped[list["Snippet"]] = relationship(back_populates="user")
+```
+
+### Snippet Model
+
+```python
+class Snippet(Base, TimestampMixin):
+    __tablename__ = "snippets"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID, primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    title: Mapped[str | None] = mapped_column(String(255))
+    language: Mapped[str] = mapped_column(String(50), default="python")
+    code: Mapped[str] = mapped_column(Text)
+    description: Mapped[str | None] = mapped_column(Text)
+    last_execution_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    execution_count: Mapped[int] = mapped_column(default=0)
+    is_starred: Mapped[bool] = mapped_column(Boolean, default=False)
+    time_complexity: Mapped[str | None] = mapped_column(String(50))
+    space_complexity: Mapped[str | None] = mapped_column(String(50))
+    
+    user: Mapped["User"] = relationship(back_populates="snippets")
+```
+
+---
+
+## Neo4j Graph Schema
+
+Vector search and semantic relationships stored in Neo4j AuraDB.
+
+### Node Types
+
+```cypher
+// User node (synced from PostgreSQL)
+(:User {
+    id: String,           // UUID as string
+    cognito_sub: String,
+    email: String
+})
+
+// Snippet node with vector embedding
+(:Snippet {
+    id: String,           // UUID as string
+    title: String,
+    language: String,
+    code: String,
+    embedding: [Float]    // 768-dim Gemini text-embedding-004
+})
+```
+
+### Relationships
+
+```cypher
+(:User)-[:OWNS]->(:Snippet)
+(:Snippet)-[:SIMILAR_TO {score: Float}]->(:Snippet)
+```
+
+### Vector Index
+
+```cypher
+CREATE VECTOR INDEX snippet_embeddings FOR (s:Snippet) ON s.embedding
+OPTIONS {
+    indexConfig: {
+        `vector.dimensions`: 768,
+        `vector.similarity_function`: 'cosine'
+    }
 }
 ```
 
-### Connections Table
+---
 
-Tracks active WebSocket connections for push notifications.
+## Data Sync (PostgreSQL → Neo4j)
+
+When snippets are created/updated in PostgreSQL, a sync process updates Neo4j:
 
 ```
-Table: code-remote-{env}-connections
-────────────────────────────────────────────────────────────
-
-Primary Key:
-  - Partition Key: connection_id (String, API Gateway ID)
-
-GSI: user_id-index
-  - Partition Key: user_id (String)
-  - Projection: ALL
-
-TTL: ttl (Number, Unix timestamp)
-  - Auto-delete after 2 hours
-
-Attributes:
-┌─────────────────────┬───────────┬──────────────────────────────┐
-│ Attribute           │ Type      │ Description                  │
-├─────────────────────┼───────────┼──────────────────────────────┤
-│ connection_id       │ String    │ API Gateway connection ID    │
-│ user_id             │ String    │ Cognito sub                  │
-│ connected_at        │ String    │ ISO timestamp                │
-│ subscribed_jobs     │ StringSet │ Job IDs being watched        │
-│ ttl                 │ Number    │ Unix timestamp for cleanup   │
-└─────────────────────┴───────────┴──────────────────────────────┘
+PostgreSQL ──► SQS FIFO Queue ──► Sync Worker Lambda ──► Neo4j
+                                         │
+                                         └──► Gemini API (embeddings)
 ```
 
-## Access Patterns
+### Sync Queue Messages
 
-### Jobs Table
+```json
+{
+    "action": "upsert" | "delete",
+    "snippet_id": "uuid",
+    "user_id": "uuid"
+}
+```
 
-| Pattern | Query | Index |
-|---------|-------|-------|
-| Get job by ID | `job_id = X` | Primary key |
-| List user's recent jobs | `user_id = X, created_at DESC` | GSI |
-| Update job status | `job_id = X` (update) | Primary key |
+### Sync Worker Process
 
-### Connections Table
+1. Receive message from `code-remote-{env}-snippet-sync.fifo`
+2. Fetch snippet from PostgreSQL
+3. Generate embedding via Gemini `text-embedding-004`
+4. Upsert/delete node in Neo4j
+5. Update similarity relationships
 
-| Pattern | Query | Index |
-|---------|-------|-------|
-| Get connection | `connection_id = X` | Primary key |
-| Find user's connections | `user_id = X` | GSI |
-| Add job subscription | `connection_id = X` (update SET) | Primary key |
-| Remove connection | `connection_id = X` (delete) | Primary key |
+---
 
 ## Pydantic Schemas
 
+### Snippet Schemas
+
 ```python
-# api/schemas/jobs.py
+class SnippetCreate(BaseModel):
+    title: str | None = None
+    code: str
+    language: str = "python"
+    description: str | None = None
 
-from datetime import datetime
-from typing import Literal
-from pydantic import BaseModel
+class SnippetResponse(BaseModel):
+    id: UUID
+    title: str | None
+    code: str
+    language: str
+    description: str | None
+    is_starred: bool
+    execution_count: int
+    time_complexity: str | None
+    space_complexity: str | None
+    created_at: datetime
+    updated_at: datetime
 
+class SnippetAnalysis(BaseModel):
+    time_complexity: str
+    space_complexity: str
+    explanation: str
+```
 
+### Execution Schemas
+
+```python
 class ExecutionRequest(BaseModel):
-    """Request to execute code."""
     code: str
     timeout_seconds: int = 30
 
-
-class JobResult(BaseModel):
-    """Execution result."""
+class ExecutionResult(BaseModel):
     success: bool
     stdout: str = ""
     stderr: str = ""
@@ -135,170 +233,71 @@ class JobResult(BaseModel):
     error_type: str | None = None
     execution_time_ms: float | None = None
     timed_out: bool = False
-
-
-class JobSubmittedResponse(BaseModel):
-    """Response when job is submitted."""
-    job_id: str
-    status: Literal["pending"] = "pending"
-
-
-class JobStatusResponse(BaseModel):
-    """Full job status."""
-    job_id: str
-    status: Literal["pending", "running", "completed", "failed"]
-    result: JobResult | None = None
-    created_at: datetime
-    started_at: datetime | None = None
-    completed_at: datetime | None = None
-
-
-class JobSummary(BaseModel):
-    """Abbreviated job info for lists."""
-    job_id: str
-    status: str
-    created_at: datetime
-    execution_time_ms: float | None = None
 ```
 
-## WebSocket Message Types
+---
+
+## WebSocket Messages
 
 ### Client → Server
 
 ```typescript
-// Subscribe to job updates
 { "action": "subscribe", "job_id": "uuid" }
-
-// Unsubscribe
 { "action": "unsubscribe", "job_id": "uuid" }
-
-// Heartbeat
 { "action": "ping" }
 ```
 
 ### Server → Client
 
 ```typescript
-// Job status changed
+// Job completed
 {
-  "type": "job.status",
-  "job_id": "uuid",
-  "status": "running" | "completed" | "failed",
-  "timestamp": "ISO-8601"
+    "type": "job.result",
+    "job_id": "uuid",
+    "status": "completed" | "failed",
+    "result": {
+        "success": boolean,
+        "stdout": string,
+        "stderr": string,
+        "error": string | null,
+        "execution_time_ms": number,
+        "timed_out": boolean
+    }
 }
 
-// Job completed with result
-{
-  "type": "job.result",
-  "job_id": "uuid",
-  "status": "completed" | "failed",
-  "result": {
-    "success": boolean,
-    "stdout": string,
-    "stderr": string,
-    "error": string | null,
-    "execution_time_ms": number,
-    "timed_out": boolean
-  }
-}
-
-// Heartbeat response
+// Heartbeat
 { "type": "pong" }
-
-// Error
-{
-  "type": "error",
-  "message": string,
-  "code": "JOB_NOT_FOUND" | "INVALID_REQUEST" | "UNAUTHORIZED"
-}
 ```
 
-## SQS Message Format
+---
+
+## SQS Message Formats
+
+### Execution Queue
 
 ```json
 {
-  "job_id": "uuid",
-  "user_id": "cognito-sub",
-  "code": "print('hello')",
-  "timeout_seconds": 30
+    "job_id": "uuid",
+    "user_id": "cognito-sub",
+    "code": "print('hello')",
+    "timeout_seconds": 30
 }
 ```
 
-FIFO Queue attributes:
-- `MessageGroupId`: user_id (preserves order per user)
-- `MessageDeduplicationId`: job_id (prevents duplicates)
+- Queue: `code-remote-{env}-execution.fifo`
+- MessageGroupId: `user_id`
+- MessageDeduplicationId: `job_id`
 
-## Future: Aurora PostgreSQL Schema (Phase 9)
+### Snippet Sync Queue
 
-For code snippets with semantic search:
-
-```sql
--- Users (synced from Cognito)
-CREATE TABLE users (
-    id UUID PRIMARY KEY,
-    cognito_sub VARCHAR(255) UNIQUE NOT NULL,
-    email VARCHAR(255),
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Snippets (source of truth for CRUD)
-CREATE TABLE snippets (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-    name VARCHAR(255) NOT NULL,
-    description TEXT,
-    code TEXT NOT NULL,
-    language VARCHAR(50) DEFAULT 'python',
-    
-    -- Analysis results
-    time_complexity VARCHAR(50),
-    space_complexity VARCHAR(50),
-    explanation TEXT,
-    analyzed_at TIMESTAMPTZ,
-    
-    -- Metadata
-    is_starred BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-    
-    -- NOTE: No embedding column - vectors stored in Neo4j
-);
-
--- Indexes
-CREATE INDEX idx_snippets_user_id ON snippets(user_id);
-CREATE INDEX idx_snippets_starred ON snippets(user_id, is_starred) 
-    WHERE is_starred = TRUE;
+```json
+{
+    "action": "upsert",
+    "snippet_id": "uuid",
+    "user_id": "uuid"
+}
 ```
 
-## Future: Neo4j Graph Schema (Phase 9.2+)
-
-Vector search and pattern relationships stored in Neo4j AuraDB:
-
-```cypher
-// Node types
-(:User {id: UUID, cognito_sub: String})
-(:Snippet {id: UUID, embedding: [Float]})  // 768-dim Gemini embeddings
-(:Pattern {name: String})                   // "recursion", "memoization", etc.
-
-// Relationships
-(:User)-[:OWNS]->(:Snippet)
-(:User)-[:STARRED {at: DateTime}]->(:Snippet)
-(:Snippet)-[:SIMILAR_TO {score: Float}]->(:Snippet)  // computed from embeddings
-(:Snippet)-[:USES]->(:Pattern)                       // LLM-extracted patterns
-
-// Vector index for semantic search
-CREATE VECTOR INDEX snippet_embeddings FOR (s:Snippet) ON s.embedding
-OPTIONS {indexConfig: {`vector.dimensions`: 768, `vector.similarity_function`: 'cosine'}}
-```
-
-### CDC Sync (PostgreSQL → Neo4j)
-
-Events flow through EventBridge when snippets are created/updated/deleted:
-
-```
-PostgreSQL (CRUD) ──► EventBridge ──► Sync Lambda ──► Neo4j
-```
-
-- `snippet.created` → Create Snippet node, OWNS relationship
-- `snippet.updated` → Update embedding, recompute SIMILAR_TO
-- `snippet.deleted` → DETACH DELETE Snippet node
+- Queue: `code-remote-{env}-snippet-sync.fifo`
+- MessageGroupId: `user_id`
+- MessageDeduplicationId: `{action}:{snippet_id}:{timestamp}`

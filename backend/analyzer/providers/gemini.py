@@ -94,31 +94,48 @@ Respond with JSON only:
         try:
             prompt = self._load_prompt_template().format(code=code)
 
+            # Config for generation
+            temperature = 0.1  # Low temperature for consistent analysis
+            max_output_tokens = 2048  # Increased for detailed responses
+
             # Generate response using the new SDK async API with tracing
             with llm_span(
                 "generate_content",
                 self._model or "unknown",
-                prompt=prompt,
                 operation_type="complexity_analysis",
+                temperature=temperature,
+                max_output_tokens=max_output_tokens,
+                prompt_chars=len(prompt),
             ) as span:
                 response = await self._client.aio.models.generate_content(
                     model=self._model,
                     contents=prompt,
                     config=types.GenerateContentConfig(
-                        temperature=0.1,  # Low temperature for consistent analysis
-                        max_output_tokens=2048,  # Increased for detailed responses
+                        temperature=temperature,
+                        max_output_tokens=max_output_tokens,
                     ),
                 )
 
                 raw_text = response.text.strip() if response.text else ""
 
-                # Add response attributes to span
+                # Add response attributes to span including token usage
+                usage = response.usage_metadata
                 add_llm_response_attributes(
                     span,
+                    # Response info
+                    response_chars=len(raw_text),
                     response_truncated=raw_text[:200] if raw_text else None,
                     finish_reason=str(response.candidates[0].finish_reason)
                     if response.candidates
                     else None,
+                    # Token usage
+                    input_tokens=usage.prompt_token_count if usage else None,
+                    output_tokens=usage.candidates_token_count if usage else None,
+                    thinking_tokens=usage.thoughts_token_count if usage else None,
+                    total_tokens=usage.total_token_count if usage else None,
+                    # Model info for debugging
+                    response_id=response.response_id,
+                    model_version=getattr(response, "model_version", None),
                 )
 
             # Log raw response for debugging

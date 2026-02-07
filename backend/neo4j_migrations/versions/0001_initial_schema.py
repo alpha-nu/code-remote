@@ -34,13 +34,6 @@ QUERIES = [
     "MERGE (l:Language {name: 'swift'})",
     "MERGE (l:Language {name: 'kotlin'})",
     "MERGE (l:Language {name: 'scala'})",
-    # === Pre-populate Complexities ===
-    "MERGE (c:Complexity {notation: 'O(1)'}) SET c.name = 'constant', c.rank = 1",
-    "MERGE (c:Complexity {notation: 'O(log n)'}) SET c.name = 'logarithmic', c.rank = 2",
-    "MERGE (c:Complexity {notation: 'O(n)'}) SET c.name = 'linear', c.rank = 3",
-    "MERGE (c:Complexity {notation: 'O(n log n)'}) SET c.name = 'linearithmic', c.rank = 4",
-    "MERGE (c:Complexity {notation: 'O(n²)'}) SET c.name = 'quadratic', c.rank = 5",
-    "MERGE (c:Complexity {notation: 'O(n³)'}) SET c.name = 'cubic', c.rank = 6",
-    "MERGE (c:Complexity {notation: 'O(2^n)'}) SET c.name = 'exponential', c.rank = 7",
-    "MERGE (c:Complexity {notation: 'O(n!)'}) SET c.name = 'factorial', c.rank = 8",
+    # NOTE: Complexity nodes are created dynamically via MERGE in upsert_snippet
+    # to handle varied LLM output formats (e.g., O(n^2) vs O(n²))
 ]

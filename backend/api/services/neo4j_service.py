@@ -293,11 +293,12 @@ class Neo4jService:
         MERGE (s)-[:WRITTEN_IN]->(l)
 
         // Update time complexity (remove old, add new)
+        // Use MERGE to create Complexity node if it doesn't exist (LLM may return varied formats)
         WITH s
         OPTIONAL MATCH (s)-[r1:HAS_TIME_COMPLEXITY]->()
         DELETE r1
         WITH s
-        MATCH (tc:Complexity {notation: $time_complexity})
+        MERGE (tc:Complexity {notation: $time_complexity})
         MERGE (s)-[:HAS_TIME_COMPLEXITY]->(tc)
 
         // Update space complexity (remove old, add new)
@@ -305,7 +306,7 @@ class Neo4jService:
         OPTIONAL MATCH (s)-[r2:HAS_SPACE_COMPLEXITY]->()
         DELETE r2
         WITH s
-        MATCH (sc:Complexity {notation: $space_complexity})
+        MERGE (sc:Complexity {notation: $space_complexity})
         MERGE (s)-[:HAS_SPACE_COMPLEXITY]->(sc)
 
         RETURN s.id AS id, s.title AS title, s.synced_at AS synced_at

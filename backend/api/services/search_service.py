@@ -169,9 +169,11 @@ class SearchService:
         WHERE s.id <> $snippet_id
         MATCH (s)-[:OWNED_BY]->(u:User {id: $user_id})
         MATCH (s)-[:HAS_TIME_COMPLEXITY]->(tc:Complexity)
+        MATCH (s)-[:HAS_SPACE_COMPLEXITY]->(sc:Complexity)
         OPTIONAL MATCH (s)-[:WRITTEN_IN]->(l:Language)
         RETURN s.id AS snippet_id, s.title AS title, s.description AS description,
                tc.notation AS time_complexity,
+               sc.notation AS space_complexity,
                l.name AS language,
                score
         ORDER BY score DESC

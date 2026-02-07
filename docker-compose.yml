@@ -75,5 +75,30 @@ services:
       start_period: 10s
     restart: unless-stopped
 
+  # =============================================================================
+  # Optional: Local Neo4j for development
+  # Use: docker compose --profile neo4j up
+  # Or use Neo4j AuraDB free tier instead (recommended)
+  # =============================================================================
+  neo4j:
+    image: neo4j:5-community
+    profiles: ["neo4j"]
+    ports:
+      - "7474:7474"  # Browser UI
+      - "7687:7687"  # Bolt protocol
+    environment:
+      NEO4J_AUTH: neo4j/localdevpassword
+      NEO4J_PLUGINS: '["apoc"]'
+      NEO4J_dbms_security_procedures_unrestricted: apoc.*
+    volumes:
+      - neo4j_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7474"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
 volumes:
   postgres_data:
+  neo4j_data:

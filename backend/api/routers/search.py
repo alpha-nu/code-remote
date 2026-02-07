@@ -154,12 +154,17 @@ async def complexity_filter(
     driver = get_neo4j_driver()
     try:
         neo4j_service = Neo4jService(driver)
+
+        # Map type to the correct parameter
+        complexity_kwargs = {"user_id": str(user.id), "limit": limit}
+        if type == "time":
+            complexity_kwargs["time_complexity"] = complexity
+        else:
+            complexity_kwargs["space_complexity"] = complexity
+
         results = await asyncio.to_thread(
             neo4j_service.get_snippets_by_complexity,
-            user_id=str(user.id),
-            complexity_type=type,
-            complexity_value=complexity,
-            limit=limit,
+            **complexity_kwargs,
         )
 
         search_results = [
@@ -187,8 +192,6 @@ async def complexity_filter(
             status_code=503,
             detail="Search service unavailable",
         )
-    finally:
-        driver.close()
 
 
 @router.get(

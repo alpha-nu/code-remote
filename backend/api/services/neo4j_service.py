@@ -407,20 +407,25 @@ class Neo4jService:
         Returns:
             List of matching snippets.
         """
-        conditions = ["(s)-[:OWNED_BY]->(u:User {id: $user_id})"]
         params: dict[str, Any] = {"user_id": user_id, "limit": limit}
 
+        # Build MATCH clauses (not WHERE pattern expressions)
+        match_clauses = ["MATCH (s:Snippet)-[:OWNED_BY]->(u:User {id: $user_id})"]
+
         if time_complexity:
-            conditions.append("(s)-[:HAS_TIME_COMPLEXITY]->(:Complexity {notation: $time})")
+            match_clauses.append(
+                "MATCH (s)-[:HAS_TIME_COMPLEXITY]->(:Complexity {notation: $time})"
+            )
             params["time"] = time_complexity
 
         if space_complexity:
-            conditions.append("(s)-[:HAS_SPACE_COMPLEXITY]->(:Complexity {notation: $space})")
+            match_clauses.append(
+                "MATCH (s)-[:HAS_SPACE_COMPLEXITY]->(:Complexity {notation: $space})"
+            )
             params["space"] = space_complexity
 
         query = f"""
-        MATCH (s:Snippet)
-        WHERE {" AND ".join(conditions)}
+        {chr(10).join(match_clauses)}
         MATCH (s)-[:HAS_TIME_COMPLEXITY]->(tc:Complexity)
         MATCH (s)-[:HAS_SPACE_COMPLEXITY]->(sc:Complexity)
         OPTIONAL MATCH (s)-[:WRITTEN_IN]->(l:Language)

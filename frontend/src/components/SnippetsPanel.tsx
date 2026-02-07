@@ -4,6 +4,8 @@
 
 import { useState, useEffect } from 'react';
 import { useSnippets, useDeleteSnippet, useUpdateSnippet } from '../hooks/useSnippets';
+import { useSearch, useComplexityFilter } from '../hooks/useSearch';
+import type { ComplexityType } from '../hooks/useSearch';
 import { useEditorStore } from '../store/editorStore';
 import { useSnippetsStore } from '../store/snippetsStore';
 import { snippetsApi } from '../api/snippets';
@@ -23,10 +25,68 @@ export function SnippetsPanel() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [snippetCodes, setSnippetCodes] = useState<Record<string, string>>({});
   const [searchQuery, setSearchQuery] = useState('');
+  const [activeSearchQuery, setActiveSearchQuery] = useState<string | null>(null);
+
+  // Complexity filter state
+  const [activeComplexityFilter, setActiveComplexityFilter] = useState<{
+    value: string;
+    type: ComplexityType;
+  } | null>(null);
 
   // Fetch snippets from API
   const { data: snippetsData, isLoading, error } = useSnippets(50, 0);
-  const snippets = snippetsData?.items || [];
+  const regularSnippets = snippetsData?.items || [];
+
+  // Search results (only fetches when activeSearchQuery is set)
+  const {
+    data: searchData,
+    isLoading: isSearching,
+    error: searchError
+  } = useSearch(activeSearchQuery);
+
+  // Complexity filter results
+  const {
+    data: complexityData,
+    isLoading: isFilteringByComplexity,
+    error: complexityError,
+  } = useComplexityFilter(
+    activeComplexityFilter?.value ?? null,
+    activeComplexityFilter?.type ?? null
+  );
+
+  // Determine which snippets to display
+  const isSearchMode = activeSearchQuery !== null;
+  const isComplexityFilterMode = activeComplexityFilter !== null;
+  const snippets: SnippetSummary[] = isSearchMode
+    ? (searchData?.results || []).map(r => ({
+        id: r.id,
+        title: r.title,
+        description: r.description,
+        timeComplexity: r.timeComplexity,
+        spaceComplexity: r.spaceComplexity,
+        isStarred: r.isStarred,
+        createdAt: r.createdAt,
+        // Fill in missing fields for search results
+        language: r.language || 'python',
+        executionCount: 0,
+        lastExecutionAt: null,
+        updatedAt: r.createdAt,
+      }))
+    : isComplexityFilterMode
+    ? (complexityData?.results || []).map(r => ({
+        id: r.id,
+        title: r.title,
+        description: r.description,
+        timeComplexity: r.timeComplexity,
+        spaceComplexity: r.spaceComplexity,
+        isStarred: r.isStarred,
+        createdAt: r.createdAt,
+        language: r.language || 'python',
+        executionCount: 0,
+        lastExecutionAt: null,
+        updatedAt: r.createdAt,
+      }))
+    : regularSnippets;
 
   const deleteSnippet = useDeleteSnippet();
   const updateSnippet = useUpdateSnippet();
@@ -164,15 +224,27 @@ export function SnippetsPanel() {
             <div className="snippets-search">
               <input
                 type="text"
-                placeholder="Search snippets..."
+                placeholder="Search snippets... (Enter to search)"
                 className="snippets-search-input"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && searchQuery.length >= 3) {
+                    setActiveComplexityFilter(null); // Clear complexity filter
+                    setActiveSearchQuery(searchQuery);
+                  } else if (e.key === 'Escape') {
+                    setSearchQuery('');
+                    setActiveSearchQuery(null);
+                  }
+                }}
               />
-              {searchQuery && (
+              {(searchQuery || isSearchMode) && (
                 <button
                   className="search-clear-btn"
-                  onClick={() => setSearchQuery('')}
+                  onClick={() => {
+                    setSearchQuery('');
+                    setActiveSearchQuery(null);
+                  }}
                   title="Clear search"
                 >
                   ×
@@ -190,19 +262,41 @@ export function SnippetsPanel() {
             </div>
           </div>
 
+          {/* Complexity filter mode indicator */}
+          {isComplexityFilterMode && !isSearchMode && (
+            <div className="search-mode-indicator complexity-filter">
+              <span className="search-mode-label">
+                {activeComplexityFilter.type === 'time' ? 'Time' : 'Space'}: {activeComplexityFilter.value}
+                {complexityData && ` (${complexityData.total} found)`}
+              </span>
+              <button
+                className="filter-clear-btn"
+                onClick={() => setActiveComplexityFilter(null)}
+                title="Clear filter"
+              >
+                ×
+              </button>
+            </div>
+          )}
+
           <div className="snippets-list">
-            {isLoading ? (
+            {(isLoading || isSearching || isFilteringByComplexity) ? (
               <div className="snippets-loading">
-                <img src={spinner} className="spinner-logo small" alt="Loading" /> Loading snippets...
+                <img src={spinner} className="spinner-logo small" alt="Loading" />
+                {isSearching ? 'Searching...' : isFilteringByComplexity ? 'Filtering...' : 'Loading snippets...'}
               </div>
-            ) : error ? (
+            ) : (error || searchError || complexityError) ? (
               <div className="snippets-error">
                 <p>Failed to load snippets</p>
-                <p className="error-message">{error instanceof Error ? error.message : 'Unknown error'}</p>
+                <p className="error-message">
+                  {(error || searchError || complexityError) instanceof Error
+                    ? (error || searchError || complexityError)?.message
+                    : 'Unknown error'}
+                </p>
               </div>
             ) : snippets.length === 0 ? (
               <div className="snippets-empty">
-                <p>No snippets yet</p>
+                <p>{(isSearchMode || isComplexityFilterMode) ? 'No matching snippets found' : 'No snippets yet'}</p>
               </div>
             ) : (
               snippets.map((snippet: SnippetSummary) => (
@@ -222,14 +316,38 @@ export function SnippetsPanel() {
                   {(snippet.timeComplexity || snippet.spaceComplexity) && (
                     <div className="snippet-complexity">
                       {snippet.timeComplexity && (
-                        <span className="complexity-badge time">
+                        <button
+                          className="complexity-badge time clickable"
+                          title={`Filter by Time: ${snippet.timeComplexity}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActiveSearchQuery(null); // Clear search mode
+                            setSearchQuery('');
+                            setActiveComplexityFilter({
+                              value: snippet.timeComplexity!,
+                              type: 'time',
+                            });
+                          }}
+                        >
                           Time: {snippet.timeComplexity}
-                        </span>
+                        </button>
                       )}
                       {snippet.spaceComplexity && (
-                        <span className="complexity-badge space">
+                        <button
+                          className="complexity-badge space clickable"
+                          title={`Filter by Space: ${snippet.spaceComplexity}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActiveSearchQuery(null); // Clear search mode
+                            setSearchQuery('');
+                            setActiveComplexityFilter({
+                              value: snippet.spaceComplexity!,
+                              type: 'space',
+                            });
+                          }}
+                        >
                           Space: {snippet.spaceComplexity}
-                        </span>
+                        </button>
                       )}
                     </div>
                   )}

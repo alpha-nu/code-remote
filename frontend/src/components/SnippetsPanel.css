@@ -125,6 +125,50 @@
   color: var(--text-primary);
 }
 
+/* Search mode indicator */
+.search-mode-indicator {
+  padding: 8px 12px;
+  background: var(--surface-secondary);
+  border-bottom: 1px solid var(--border-color);
+  font-size: 12px;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.search-mode-indicator.complexity-filter {
+  background: linear-gradient(
+    90deg,
+    rgba(31, 140, 255, 0.1) 0%,
+    rgba(52, 211, 153, 0.1) 100%
+  );
+}
+
+.search-mode-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+}
+
+.filter-clear-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 0 4px;
+  opacity: 0.7;
+  transition: opacity 0.15s, color 0.15s;
+}
+
+.filter-clear-btn:hover {
+  opacity: 1;
+  color: var(--accent-red, #ef4444);
+}
+
 .snippets-actions {
   display: flex;
   gap: 8px;
@@ -368,6 +412,8 @@
   padding: 2px 8px;
   border-radius: 3px;
   white-space: nowrap;
+  border: none;
+  font-family: inherit;
 }
 
 .snippet-item .complexity-badge.time {
@@ -380,6 +426,20 @@
   color: var(--accent-green);
   background-color: rgba(52, 211, 153, 0.15);
   border-left: none;
+}
+
+/* Clickable complexity badges */
+.snippet-item .complexity-badge.clickable {
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.snippet-item .complexity-badge.time.clickable:hover {
+  background-color: rgba(31, 140, 255, 0.3);
+}
+
+.snippet-item .complexity-badge.space.clickable:hover {
+  background-color: rgba(52, 211, 153, 0.3);
 }
 
 /* Metro-style Star Wedge (upper-right corner) */

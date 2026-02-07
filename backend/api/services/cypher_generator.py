@@ -16,7 +16,7 @@ from common.config import settings
 logger = logging.getLogger(__name__)
 
 # Load prompt template
-PROMPT_PATH = Path(__file__).parent.parent / "analyzer" / "prompts" / "text_to_cypher.txt"
+PROMPT_PATH = Path(__file__).parent.parent.parent / "analyzer" / "prompts" / "text_to_cypher.txt"
 
 
 class CypherGenerator:

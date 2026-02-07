@@ -42,18 +42,18 @@ More than just a code runner—Code Remote is a complete environment for experim
 
 ## Architecture
 
-```
+```text
 ┌──────────────────┐     ┌──────────────────┐     ┌──────────────────┐
 │     Frontend     │────▶│   API Gateway    │────▶│  Lambda/FastAPI  │
 │  React + Monaco  │     │   (HTTP + WS)    │     │                  │
 └──────────────────┘     └──────────────────┘     └──────────────────┘
                                                            │
               ┌─────────────────┬──────────┴──────────┬─────────────────┐
-              ▼                 ▼                    ▼                 ▼
-    ┌────────────┐   ┌────────────┐      ┌────────────┐   ┌────────────┐
+              ▼                 ▼                     ▼                 ▼
+    ┌────────────┐   ┌────────────┐      ┌─────────────┐   ┌────────────┐
     │  Executor  │   │  Analyzer  │      │  PostgreSQL │   │   Neo4j    │
     │  (Sandbox) │   │  (Gemini)  │      │   (Aurora)  │   │  (Vector)  │
-    └────────────┘   └────────────┘      └────────────┘   └────────────┘
+    └────────────┘   └────────────┘      └─────────────┘   └────────────┘
 ```
 
 ---
@@ -181,7 +181,7 @@ pulumi destroy --stack dev
 
 ## Project Structure
 
-```
+```text
 code-remote/
 ├── frontend/              # React + Monaco Editor
 │   ├── src/

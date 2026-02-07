@@ -107,7 +107,7 @@ git tag v1.0.0 && git push origin v1.0.0
 
 ## Project Structure
 
-```
+```text
 code-remote/
 ├── frontend/           # React + Monaco Editor
 ├── backend/

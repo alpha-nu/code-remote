@@ -8,7 +8,7 @@ import json
 import logging
 from typing import Any
 
-from api.services.neo4j_service import close_neo4j_driver, get_neo4j_driver
+from api.services.neo4j_service import neo4j_driver_context
 from common.config import settings
 from neo4j_migrations.runner import Neo4jMigrationRunner
 
@@ -30,32 +30,33 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     logger.info("Starting Neo4j migrations...")
 
     try:
-        driver = get_neo4j_driver()
-        runner = Neo4jMigrationRunner(driver, database=settings.neo4j_database)
+        # Use context manager for migrations - creates fresh driver, closes on exit
+        with neo4j_driver_context() as driver:
+            runner = Neo4jMigrationRunner(driver, database=settings.neo4j_database)
 
-        # Get current status
-        status_before = runner.get_status()
-        logger.info(f"Status before: {status_before}")
+            # Get current status
+            status_before = runner.get_status()
+            logger.info(f"Status before: {status_before}")
 
-        # Run pending migrations
-        applied = runner.run_all_pending()
+            # Run pending migrations
+            applied = runner.run_all_pending()
 
-        # Get final status
-        status_after = runner.get_status()
+            # Get final status
+            status_after = runner.get_status()
 
-        result = {
-            "statusCode": 200,
-            "body": json.dumps(
-                {
-                    "message": "Neo4j migrations complete",
-                    "applied": applied,
-                    "status": status_after,
-                }
-            ),
-        }
+            result = {
+                "statusCode": 200,
+                "body": json.dumps(
+                    {
+                        "message": "Neo4j migrations complete",
+                        "applied": applied,
+                        "status": status_after,
+                    }
+                ),
+            }
 
-        logger.info(f"Migrations complete. Applied: {applied}")
-        return result
+            logger.info(f"Migrations complete. Applied: {applied}")
+            return result
 
     except Exception as e:
         logger.error(f"Migration failed: {e}", exc_info=True)
@@ -68,9 +69,6 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
                 }
             ),
         }
-
-    finally:
-        close_neo4j_driver()
 
 
 # For local testing

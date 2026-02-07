@@ -161,7 +161,8 @@ def handler(event: dict, context: Any) -> dict:
     Returns:
         Batch item failures for partial batch retry.
     """
-    # Initialize services
+    # Use singleton driver for high-throughput - survives Lambda container reuse.
+    # NEVER close this driver; for one-off operations use neo4j_driver_context().
     driver = get_neo4j_driver()
     neo4j_service = Neo4jService(driver)
     embedding_service = EmbeddingService()
@@ -169,29 +170,26 @@ def handler(event: dict, context: Any) -> dict:
     records = event.get("Records", [])
     batch_item_failures = []
 
-    try:
-        for record in records:
-            message_id = record.get("messageId", "unknown")
-            try:
-                body = json.loads(record.get("body", "{}"))
-                sync_event = SnippetSyncEvent.model_validate(body)
+    for record in records:
+        message_id = record.get("messageId", "unknown")
+        try:
+            body = json.loads(record.get("body", "{}"))
+            sync_event = SnippetSyncEvent.model_validate(body)
 
-                success = process_event(sync_event, neo4j_service, embedding_service)
+            success = process_event(sync_event, neo4j_service, embedding_service)
 
-                if not success:
-                    batch_item_failures.append({"itemIdentifier": message_id})
-
-            except Exception as e:
-                logger.error(
-                    "Failed to process sync event",
-                    extra={
-                        "message_id": message_id,
-                        "error": str(e),
-                    },
-                    exc_info=True,
-                )
+            if not success:
                 batch_item_failures.append({"itemIdentifier": message_id})
-    finally:
-        driver.close()
+
+        except Exception as e:
+            logger.error(
+                "Failed to process sync event",
+                extra={
+                    "message_id": message_id,
+                    "error": str(e),
+                },
+                exc_info=True,
+            )
+            batch_item_failures.append({"itemIdentifier": message_id})
 
     return {"batchItemFailures": batch_item_failures}

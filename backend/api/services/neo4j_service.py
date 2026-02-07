@@ -50,14 +50,21 @@ def get_neo4j_credentials() -> dict[str, str]:
     }
 
 
-# Global driver instance (connection pool)
+# Global driver instance (singleton for high-throughput handlers)
 _driver: Driver | None = None
+
+# Connection pool size - 1 for Lambda (single concurrent request per container)
+_MAX_CONNECTION_POOL_SIZE = 1
 
 
 def get_neo4j_driver() -> Driver:
-    """Get or create the Neo4j driver instance.
+    """Get or create the Neo4j driver singleton.
 
-    The driver maintains a connection pool and should be reused.
+    Use this for high-throughput handlers (sync-worker, API routes) where
+    driver creation overhead would impact performance. The singleton survives
+    Lambda container reuse.
+
+    IMPORTANT: Never close this driver - it's shared across invocations.
 
     Returns:
         Neo4j Driver instance.
@@ -81,6 +88,7 @@ def get_neo4j_driver() -> Driver:
     _driver = GraphDatabase.driver(
         credentials["uri"],
         auth=(credentials["username"], credentials["password"]),
+        max_connection_pool_size=_MAX_CONNECTION_POOL_SIZE,
     )
 
     # Verify connectivity
@@ -90,13 +98,60 @@ def get_neo4j_driver() -> Driver:
     return _driver
 
 
+@contextmanager
+def neo4j_driver_context():
+    """Context manager for short-lived Neo4j driver usage.
+
+    Use this for one-off operations like migrations where you want
+    explicit cleanup. Creates a fresh driver and closes it on exit.
+
+    Usage:
+        with neo4j_driver_context() as driver:
+            # use driver
+        # driver is closed automatically
+
+    Yields:
+        Neo4j Driver instance.
+
+    Raises:
+        ValueError: If Neo4j credentials are not configured.
+    """
+    credentials = get_neo4j_credentials()
+
+    if not credentials["uri"] or not credentials["password"]:
+        raise ValueError(
+            "Neo4j credentials not configured. "
+            "Set NEO4J_URI and NEO4J_PASSWORD or NEO4J_SECRET_ARN."
+        )
+
+    driver = GraphDatabase.driver(
+        credentials["uri"],
+        auth=(credentials["username"], credentials["password"]),
+        max_connection_pool_size=_MAX_CONNECTION_POOL_SIZE,
+    )
+
+    try:
+        driver.verify_connectivity()
+        logger.info(f"Connected to Neo4j at {credentials['uri']} (context manager)")
+        yield driver
+    finally:
+        driver.close()
+        logger.info("Neo4j driver closed (context manager)")
+
+
 def close_neo4j_driver() -> None:
-    """Close the Neo4j driver and release resources."""
+    """Close the Neo4j driver singleton and release resources.
+
+    WARNING: Only call this at application shutdown. Never call in Lambda
+    handlers - the singleton should survive container reuse.
+
+    For short-lived operations, use neo4j_driver_context() instead.
+    """
     global _driver
     if _driver is not None:
         _driver.close()
         _driver = None
-        logger.info("Neo4j driver closed")
+        logger.info("Neo4j driver singleton closed")
 
 
 @contextmanager

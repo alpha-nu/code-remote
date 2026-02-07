@@ -20,6 +20,7 @@ def get_neo4j_credentials() -> dict[str, str]:
     """
     # Try direct settings first
     if settings.neo4j_uri and settings.neo4j_password:
+        logger.debug("Using Neo4j credentials from direct settings")
         return {
             "uri": settings.neo4j_uri,
             "username": settings.neo4j_username,
@@ -29,10 +30,16 @@ def get_neo4j_credentials() -> dict[str, str]:
 
     # Fall back to AWS Secrets Manager
     if settings.neo4j_secret_arn:
+        logger.debug(
+            f"Fetching Neo4j credentials from Secrets Manager: {settings.neo4j_secret_arn}"
+        )
         secret_string = get_secret_from_aws(settings.neo4j_secret_arn)
         if secret_string:
             try:
                 secret_data = json.loads(secret_string)
+                logger.info(
+                    f"Neo4j credentials loaded from Secrets Manager (uri: {secret_data.get('uri', '')[:30]}...)"
+                )
                 return {
                     "uri": secret_data.get("uri", ""),
                     "username": secret_data.get("username", "neo4j"),
@@ -41,6 +48,10 @@ def get_neo4j_credentials() -> dict[str, str]:
                 }
             except json.JSONDecodeError:
                 logger.error("Failed to parse Neo4j secret as JSON")
+        else:
+            logger.warning(f"Failed to retrieve Neo4j secret from {settings.neo4j_secret_arn}")
+    else:
+        logger.debug("No Neo4j credentials configured (no direct settings or secret ARN)")
 
     return {
         "uri": "",

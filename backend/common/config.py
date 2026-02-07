@@ -19,12 +19,17 @@ def get_secret_from_aws(secret_arn: str) -> str:
         return ""
 
     try:
+        import logging
+
         import boto3
 
         client = boto3.client("secretsmanager")
         response = client.get_secret_value(SecretId=secret_arn)
         return response.get("SecretString", "")
-    except Exception:
+    except Exception as e:
+        import logging
+
+        logging.getLogger(__name__).error(f"Failed to fetch secret {secret_arn}: {e}")
         return ""
 
 

@@ -3,22 +3,29 @@
 
 <h1>Code Remote</h1>
 
-**Secure, Cloud-Native Remote Code Execution Platform**
+**Write. Execute. Analyze. Discover.**
+
+*A secure, AI-powered code execution and snippet management platform*
 </div>
 
 ---
 
-A secure, cloud-native remote code execution platform that enables users to write Python code in a browser-based editor, execute it in an isolated sandbox, and receive AI-powered complexity analysis.
+Code Remote is a cloud-native platform where developers can write Python code in a browser-based editor, execute it instantly in a secure sandbox, and leverage AI to understand their code better. Save your work as snippets, get automatic complexity analysis, and discover similar code patterns through semantic search.
 
 ## What is Code Remote?
 
-Code Remote provides a safe environment for running untrusted Python code. Whether you're building an educational platform, a coding interview tool, or an online IDE, Code Remote handles the hard parts: security isolation, resource limits, and intelligent code analysis.
+More than just a code runner—Code Remote is a complete environment for experimenting with, analyzing, and organizing code:
 
-**Key Use Cases:**
-- Online coding education and tutorials
+- **Execute Safely** — Run untrusted Python in an isolated Lambda sandbox with strict import controls, no filesystem or network access, and hard resource limits
+- **Understand Complexity** — Get instant AI-powered time and space complexity analysis for any algorithm
+- **Build Your Library** — Save code as snippets, organize with stars, and build a personal collection of reusable patterns
+- **Search Semantically** — Find code by *meaning*, not just keywords—ask "binary search implementation" and get relevant results via vector embeddings
+
+**Built for:**
+- Coding education and interactive tutorials
 - Technical interview platforms
-- Algorithm visualization and testing
-- Safe code playground for experimentation
+- Algorithm experimentation and visualization
+- Personal code snippet libraries
 
 ## Features
 

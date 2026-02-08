@@ -34,6 +34,38 @@ YIELD node AS s, score
 | "efficient sorting algorithms" | BOTH: vector + notation filter |
 | "count by complexity" | Graph only: aggregation |
 | "Python algorithms" | BOTH: vector + language filter |
+| "my worst/slowest code" | Graph only: use CASE ordering |
+| "my fastest/best code" | Graph only: use CASE ordering |
+
+### Complexity Performance Ordering
+When user asks about "worst", "slowest", "inefficient" or "best", "fastest", "efficient" code,
+use a CASE expression to order by performance. Here's the ranking (1=best, 8=worst):
+
+| Notation | Performance |
+|----------|-------------|
+| O(1) | 1 (constant - fastest) |
+| O(log n) | 2 |
+| O(n) | 3 |
+| O(n log n) | 4 |
+| O(n^2) | 5 |
+| O(n^3) | 6 |
+| O(2^n) | 7 |
+| O(n!) | 8 (factorial - slowest) |
+
+Use this CASE expression for ordering:
+```
+CASE c.notation
+  WHEN 'O(1)' THEN 1
+  WHEN 'O(log n)' THEN 2
+  WHEN 'O(n)' THEN 3
+  WHEN 'O(n log n)' THEN 4
+  WHEN 'O(n^2)' THEN 5
+  WHEN 'O(n^3)' THEN 6
+  WHEN 'O(2^n)' THEN 7
+  WHEN 'O(n!)' THEN 8
+  ELSE 9
+END
+```
 
 ## Rules
 1. ONLY generate READ queries (MATCH, RETURN, ORDER BY, LIMIT)
@@ -94,6 +126,44 @@ MATCH (s:Snippet)-[:HAS_TIME_COMPLEXITY]->(c:Complexity)
 MATCH (s)-[:OWNED_BY]->(u:User {{id: $user_id}})
 RETURN c.notation AS complexity, count(s) AS count
 ORDER BY count DESC
+```
+
+User: "show me my worst performing code"
+```cypher
+MATCH (s:Snippet)-[:HAS_TIME_COMPLEXITY]->(c:Complexity)
+MATCH (s)-[:OWNED_BY]->(u:User {{id: $user_id}})
+RETURN s.id, s.title, s.description, c.notation AS time_complexity
+ORDER BY CASE c.notation
+  WHEN 'O(1)' THEN 1
+  WHEN 'O(log n)' THEN 2
+  WHEN 'O(n)' THEN 3
+  WHEN 'O(n log n)' THEN 4
+  WHEN 'O(n^2)' THEN 5
+  WHEN 'O(n^3)' THEN 6
+  WHEN 'O(2^n)' THEN 7
+  WHEN 'O(n!)' THEN 8
+  ELSE 9
+END DESC
+LIMIT $limit
+```
+
+User: "my fastest algorithms"
+```cypher
+MATCH (s:Snippet)-[:HAS_TIME_COMPLEXITY]->(c:Complexity)
+MATCH (s)-[:OWNED_BY]->(u:User {{id: $user_id}})
+RETURN s.id, s.title, s.description, c.notation AS time_complexity
+ORDER BY CASE c.notation
+  WHEN 'O(1)' THEN 1
+  WHEN 'O(log n)' THEN 2
+  WHEN 'O(n)' THEN 3
+  WHEN 'O(n log n)' THEN 4
+  WHEN 'O(n^2)' THEN 5
+  WHEN 'O(n^3)' THEN 6
+  WHEN 'O(2^n)' THEN 7
+  WHEN 'O(n!)' THEN 8
+  ELSE 9
+END ASC
+LIMIT $limit
 ```
 
 Generate a Cypher query for:

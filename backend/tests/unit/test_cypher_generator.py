@@ -47,7 +47,7 @@ class TestCypherValidation:
         MATCH (s)-[:HAS_TIME_COMPLEXITY]->(c:Complexity)
         MATCH (s)-[:OWNED_BY]->(u:User {id: $user_id})
         RETURN s.id, s.title, c.notation, score
-        ORDER BY c.rank DESC
+        ORDER BY score DESC
         LIMIT 10
         """
         assert generator.is_valid_cypher(valid_query) is True

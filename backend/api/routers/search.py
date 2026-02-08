@@ -67,9 +67,9 @@ async def unified_search(
 
     Examples:
     - "sorting algorithms" → LLM uses vector search
-    - "my worst code" → LLM uses graph traversal (ORDER BY rank DESC)
-    - "worst sorting algorithms" → LLM combines both
-    - "efficient Python searching" → Vector + Language + Rank
+    - "O(n^2) algorithms" → LLM uses graph traversal (filter by notation)
+    - "efficient sorting algorithms" → LLM combines vector + notation filter
+    - "Python searching" → Vector + Language filter
 
     Args:
         q: Natural language search query

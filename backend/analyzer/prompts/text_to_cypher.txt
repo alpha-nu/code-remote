@@ -7,9 +7,8 @@ You are a Cypher query generator for a code snippet knowledge graph.
 - Snippet {{id: UUID, title: String, description: String, code: String,
            complexity_explanation: String, embedding: List<Float>}}
 - Language {{name: String}}  -- e.g., "python", "javascript"
-- Complexity {{notation: String, name: String, rank: Integer}}
-  - rank: 1=O(1) best → 8=O(n!) worst
-  - Values: O(1), O(log n), O(n), O(n log n), O(n²), O(n³), O(2^n), O(n!)
+- Complexity {{notation: String}}
+  - notation: The Big-O complexity string (e.g., "O(1)", "O(n)", "O(n^2)")
 
 ### Relationships
 - (Snippet)-[:OWNED_BY]->(User)
@@ -30,11 +29,11 @@ YIELD node AS s, score
 
 | Query Type | Approach |
 |------------|----------|
-| "my worst code" | Graph only: ORDER BY c.rank DESC |
 | "sorting algorithms" | Vector only: use $query_embedding |
-| "worst sorting algorithms" | BOTH: vector + ORDER BY rank |
+| "O(n^2) algorithms" | Graph only: filter by c.notation |
+| "efficient sorting algorithms" | BOTH: vector + notation filter |
 | "count by complexity" | Graph only: aggregation |
-| "efficient Python sorting" | BOTH: vector + language + rank filter |
+| "Python algorithms" | BOTH: vector + language filter |
 
 ## Rules
 1. ONLY generate READ queries (MATCH, RETURN, ORDER BY, LIMIT)
@@ -47,12 +46,12 @@ YIELD node AS s, score
 
 ## Examples
 
-User: "show me my worst performing code"
+User: "show me my O(n^2) algorithms"
 ```cypher
 MATCH (s:Snippet)-[:HAS_TIME_COMPLEXITY]->(c:Complexity)
 MATCH (s)-[:OWNED_BY]->(u:User {{id: $user_id}})
-RETURN s.id, s.title, s.description, c.notation AS time_complexity, c.rank
-ORDER BY c.rank DESC
+WHERE c.notation = 'O(n^2)'
+RETURN s.id, s.title, s.description, c.notation AS time_complexity
 LIMIT $limit
 ```
 
@@ -65,14 +64,14 @@ RETURN s.id, s.title, s.description, score
 ORDER BY score DESC
 ```
 
-User: "my worst performing sorting algorithms"
+User: "inefficient sorting algorithms"
 ```cypher
 CALL db.index.vector.queryNodes('snippet_embedding', 30, $query_embedding)
 YIELD node AS s, score
 MATCH (s)-[:HAS_TIME_COMPLEXITY]->(c:Complexity)
 MATCH (s)-[:OWNED_BY]->(u:User {{id: $user_id}})
-RETURN s.id, s.title, c.notation AS time_complexity, c.rank, score
-ORDER BY c.rank DESC, score DESC
+RETURN s.id, s.title, c.notation AS time_complexity, score
+ORDER BY score DESC
 LIMIT $limit
 ```
 
@@ -83,7 +82,7 @@ YIELD node AS s, score
 MATCH (s)-[:WRITTEN_IN]->(l:Language {{name: 'python'}})
 MATCH (s)-[:HAS_TIME_COMPLEXITY]->(c:Complexity)
 MATCH (s)-[:OWNED_BY]->(u:User {{id: $user_id}})
-WHERE c.rank <= 3
+WHERE c.notation IN ['O(1)', 'O(log n)', 'O(n)']
 RETURN s.id, s.title, c.notation AS time_complexity, score
 ORDER BY score DESC
 LIMIT $limit
@@ -93,8 +92,8 @@ User: "count my snippets by complexity"
 ```cypher
 MATCH (s:Snippet)-[:HAS_TIME_COMPLEXITY]->(c:Complexity)
 MATCH (s)-[:OWNED_BY]->(u:User {{id: $user_id}})
-RETURN c.notation AS complexity, c.rank, count(s) AS count
-ORDER BY c.rank ASC
+RETURN c.notation AS complexity, count(s) AS count
+ORDER BY count DESC
 ```
 
 Generate a Cypher query for:

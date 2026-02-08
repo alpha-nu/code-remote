@@ -80,8 +80,12 @@ fi
 
 "$PYTHON" << PYTHON_SCRIPT
 import asyncio
+import json
+import os
 import sys
 from uuid import UUID
+
+import boto3
 
 # Add backend to path
 sys.path.insert(0, '.')
@@ -90,25 +94,77 @@ DRY_RUN = ${PY_DRY_RUN}
 ALL_SNIPPETS = ${PY_ALL_SNIPPETS}
 SNIPPET_ID = "${SNIPPET_ID}" or None
 
+# AWS Secrets Manager client
+sm = boto3.client('secretsmanager', region_name='us-east-1')
+
+def get_secret(secret_name: str) -> dict:
+    """Fetch secret from AWS Secrets Manager."""
+    try:
+        response = sm.get_secret_value(SecretId=secret_name)
+        return json.loads(response['SecretString'])
+    except Exception as e:
+        print(f"❌ Failed to fetch secret {secret_name}: {e}")
+        sys.exit(1)
+
+def get_secret_string(secret_name: str) -> str:
+    """Fetch plain string secret from AWS Secrets Manager."""
+    try:
+        response = sm.get_secret_value(SecretId=secret_name)
+        return response['SecretString']
+    except Exception as e:
+        print(f"❌ Failed to fetch secret {secret_name}: {e}")
+        sys.exit(1)
+
+# Fetch all secrets BEFORE importing any modules that use settings
+print("🔐 Fetching credentials from AWS Secrets Manager...")
+
+# Database credentials
+db_secret = get_secret('code-remote/dev/db-connection')
+DATABASE_URL = db_secret['url']
+print(f"  ✓ Database: {db_secret['host']}")
+
+# Neo4j credentials
+neo4j_secret = get_secret('code-remote-dev-neo4j-credentials')
+print(f"  ✓ Neo4j: {neo4j_secret['uri'][:40]}...")
+
+# Gemini API key
+GEMINI_API_KEY = get_secret_string('code-remote/dev/gemini-api-key')
+print("  ✓ Gemini API key")
+
+# Set environment variables so settings module uses AWS values
+os.environ['DATABASE_URL'] = DATABASE_URL
+os.environ['GEMINI_API_KEY'] = GEMINI_API_KEY
+os.environ['GEMINI_EMBEDDING_MODEL'] = 'gemini-embedding-001'
+os.environ['NEO4J_URI'] = neo4j_secret['uri']
+os.environ['NEO4J_USERNAME'] = neo4j_secret['username']
+os.environ['NEO4J_PASSWORD'] = neo4j_secret['password']
+
+print()
+
 async def main():
     from sqlalchemy import select
     from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
     from sqlalchemy.orm import sessionmaker
+    from neo4j import GraphDatabase
 
     from api.models.snippet import Snippet
     from api.models.user import User
     from api.services.embedding_service import EmbeddingService
-    from api.services.neo4j_service import Neo4jService, get_neo4j_driver
-    from common.config import settings
+    from api.services.neo4j_service import Neo4jService
 
-    # Connect to PostgreSQL
-    engine = create_async_engine(settings.resolved_database_url)
+    # Connect to PostgreSQL (AWS RDS)
+    engine = create_async_engine(DATABASE_URL)
     async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
-    # Connect to Neo4j
-    driver = get_neo4j_driver()
-    if not driver:
-        print("❌ Could not connect to Neo4j")
+    # Connect to Neo4j (AuraDB)
+    driver = GraphDatabase.driver(
+        neo4j_secret['uri'],
+        auth=(neo4j_secret['username'], neo4j_secret['password'])
+    )
+    try:
+        driver.verify_connectivity()
+    except Exception as e:
+        print(f"❌ Could not connect to Neo4j: {e}")
         return 1
 
     neo4j_service = Neo4jService(driver)

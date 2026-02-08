@@ -12,6 +12,7 @@ from google import genai
 from google.genai import types
 
 from common.config import settings
+from common.tracing import add_llm_response_attributes, llm_span
 
 logger = logging.getLogger(__name__)
 
@@ -87,28 +88,66 @@ class CypherGenerator:
         try:
             prompt = self.prompt_template.format(user_query=user_query)
 
-            response = self.client.models.generate_content(
-                model=settings.gemini_model,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    temperature=0.1,  # Low temperature for deterministic output
-                    max_output_tokens=500,
-                ),
-            )
+            # Config for generation
+            temperature = 0.1  # Low temperature for deterministic output
+            max_output_tokens = 500
 
-            if not response.text:
+            # Generate with X-Ray tracing
+            with llm_span(
+                "generate_content",
+                settings.gemini_model,
+                operation_type="text_to_cypher",
+                temperature=temperature,
+                max_output_tokens=max_output_tokens,
+                prompt_chars=len(prompt),
+                user_query=user_query,
+            ) as span:
+                response = self.client.models.generate_content(
+                    model=settings.gemini_model,
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        temperature=temperature,
+                        max_output_tokens=max_output_tokens,
+                    ),
+                )
+
+                raw_text = response.text.strip() if response.text else ""
+
+                # Extract Cypher from response (may be in code block)
+                cypher = self._extract_cypher(raw_text) if raw_text else None
+                validated = cypher is not None and self.is_valid_cypher(cypher)
+
+                # Add response attributes to span including token usage
+                usage = response.usage_metadata
+                add_llm_response_attributes(
+                    span,
+                    # Response info
+                    response_chars=len(raw_text),
+                    raw_response=raw_text[:300] if raw_text else None,
+                    generated_cypher=cypher if cypher else None,
+                    cypher_valid=validated,
+                    finish_reason=str(response.candidates[0].finish_reason)
+                    if response.candidates
+                    else None,
+                    # Token usage
+                    input_tokens=usage.prompt_token_count if usage else None,
+                    output_tokens=usage.candidates_token_count if usage else None,
+                    thinking_tokens=usage.thoughts_token_count if usage else None,
+                    total_tokens=usage.total_token_count if usage else None,
+                    # Model info
+                    response_id=response.response_id,
+                    model_version=getattr(response, "model_version", None),
+                )
+
+            if not raw_text:
                 logger.warning("Empty response from Cypher generator")
                 return None
-
-            # Extract Cypher from response (may be in code block)
-            cypher = self._extract_cypher(response.text)
 
             if not cypher:
                 logger.warning("Could not extract Cypher from response")
                 return None
 
-            # Validate before returning
-            if not self.is_valid_cypher(cypher):
+            if not validated:
                 logger.warning(
                     "Generated Cypher failed validation",
                     extra={"cypher": cypher[:200]},

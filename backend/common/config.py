@@ -118,8 +118,10 @@ class Settings(BaseSettings):
     # Embedding (Gemini embedding model)
     gemini_embedding_model: str = ""
 
-    # Snippet Sync Queue (SQS FIFO)
-    snippet_sync_queue_url: str = ""  # SQS FIFO queue for Neo4j sync events
+    # Neo4j Sync Configuration
+    # SYNC_PROVIDER: "sqs" (production), "direct" (local dev), or "" (disabled)
+    sync_provider: str = ""  # Required: "sqs" or "direct"
+    snippet_sync_queue_url: str = ""  # Required when SYNC_PROVIDER=sqs
 
     # AWS Cognito Authentication
     cognito_user_pool_id: str = ""

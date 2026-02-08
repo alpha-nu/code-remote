@@ -24,7 +24,7 @@ from api.schemas.snippet import (
 )
 from api.services.database import get_db
 from api.services.snippet_service import SnippetService
-from api.services.sync_service import SyncService, get_sync_service
+from api.services.sync import SyncProvider, get_sync_provider
 from api.services.user_service import UserService
 
 logger = logging.getLogger(__name__)
@@ -220,7 +220,7 @@ async def delete_snippet(
     snippet_id: uuid.UUID,
     user: User = Depends(get_db_user),
     db: AsyncSession = Depends(get_db),
-    sync_service: SyncService | None = Depends(get_sync_service),
+    sync_provider: SyncProvider | None = Depends(get_sync_provider),
 ) -> SnippetDeleteResponse:
     """Delete a snippet.
 
@@ -248,15 +248,15 @@ async def delete_snippet(
             detail="Snippet not found",
         )
 
-    # Enqueue sync event to remove from Neo4j (if configured)
-    if sync_service:
+    # Sync deletion to Neo4j (if configured)
+    if sync_provider:
         try:
-            await sync_service.enqueue_deleted(
+            await sync_provider.sync_deleted(
                 snippet_id=str(snippet_id),
                 user_id=str(user.id),
             )
         except Exception as e:
-            # Don't fail delete if sync event fails
-            logger.error(f"Failed to enqueue delete sync event: {e}")
+            # Don't fail delete if sync fails
+            logger.error(f"Failed to sync deletion: {e}")
 
     return SnippetDeleteResponse(deleted=True, id=snippet_id)

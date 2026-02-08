@@ -11,7 +11,7 @@ from api.schemas.analysis import AnalyzeRequest, AnalyzeResponse
 from api.services.analyzer_service import AnalyzerService, get_analyzer_service
 from api.services.database import get_db
 from api.services.snippet_service import SnippetService
-from api.services.sync_service import SyncService, get_sync_service
+from api.services.sync import SyncProvider, get_sync_provider
 from api.services.user_service import UserService
 
 logger = logging.getLogger(__name__)
@@ -25,7 +25,7 @@ async def analyze_code(
     user: CognitoUser = Depends(get_current_user),
     analyzer: AnalyzerService = Depends(get_analyzer_service),
     db: AsyncSession = Depends(get_db),
-    sync_service: SyncService | None = Depends(get_sync_service),
+    sync_provider: SyncProvider | None = Depends(get_sync_provider),
 ) -> AnalyzeResponse:
     """Analyze Python code complexity using LLM.
 
@@ -62,9 +62,9 @@ async def analyze_code(
                     f"Persisted complexity to snippet {request.snippet_id}: "
                     f"time={result.time_complexity}, space={result.space_complexity}"
                 )
-                # Enqueue sync event to update Neo4j (if configured)
-                if sync_service:
-                    await sync_service.enqueue_analyzed(
+                # Sync to Neo4j (if configured)
+                if sync_provider:
+                    await sync_provider.sync_analyzed(
                         snippet_id=str(request.snippet_id),
                         user_id=str(db_user.id),
                     )

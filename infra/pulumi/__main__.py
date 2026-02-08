@@ -35,10 +35,23 @@ config = pulumi.Config()
 aws_config = pulumi.Config("aws")
 environment = pulumi.get_stack()  # dev, staging, or prod
 aws_region = aws_config.require("region")  # Get from aws:region config
-gemini_model = config.require("gemini_model")  # Required: e.g., gemini-2.5-flash
-gemini_embedding_model = config.require(
-    "gemini_embedding_model"
-)  # Required: e.g., gemini-embedding-001
+
+# LLM Configuration (hierarchical)
+llm_config = config.require_object("llm")
+llm_analysis = llm_config.get("analysis", {})
+llm_cypher = llm_config.get("cypher", {})
+llm_embedding = llm_config.get("embedding", {})
+
+# Extract LLM settings with defaults
+llm_analysis_model = llm_analysis.get("model", "gemini-2.5-flash")
+llm_analysis_temperature = str(llm_analysis.get("temperature", 0.1))
+llm_analysis_max_tokens = str(llm_analysis.get("max_tokens", 2048))
+llm_cypher_model = llm_cypher.get("model", "gemini-2.5-flash")
+llm_cypher_temperature = str(llm_cypher.get("temperature", 0.1))
+llm_cypher_max_tokens = str(llm_cypher.get("max_tokens", 500))
+llm_embedding_model = llm_embedding.get("model", "gemini-embedding-001")
+
+# Neo4j Configuration
 neo4j_uri = config.get("neo4j_uri") or ""  # Optional: Neo4j AuraDB URI
 neo4j_password = config.get_secret(
     "neo4j_password"
@@ -144,8 +157,16 @@ api = ServerlessAPIComponent(
         # Note: AWS_REGION is automatically set by Lambda runtime
         "COGNITO_USER_POOL_ID": cognito.user_pool.id,
         "COGNITO_CLIENT_ID": cognito.user_pool_client.id,
-        "GEMINI_MODEL": gemini_model,
-        "GEMINI_EMBEDDING_MODEL": gemini_embedding_model,
+        # LLM Analysis settings
+        "LLM_ANALYSIS_MODEL": llm_analysis_model,
+        "LLM_ANALYSIS_TEMPERATURE": llm_analysis_temperature,
+        "LLM_ANALYSIS_MAX_TOKENS": llm_analysis_max_tokens,
+        # LLM Cypher settings
+        "LLM_CYPHER_MODEL": llm_cypher_model,
+        "LLM_CYPHER_TEMPERATURE": llm_cypher_temperature,
+        "LLM_CYPHER_MAX_TOKENS": llm_cypher_max_tokens,
+        # LLM Embedding settings
+        "LLM_EMBEDDING_MODEL": llm_embedding_model,
         "DEBUG": "false" if environment == "prod" else "true",
         "CORS_ORIGINS": '["*"]',  # API Gateway handles CORS
         "DATABASE_SECRET_ARN": database.connection_secret.arn,
@@ -197,7 +218,7 @@ sync_worker = (
         if neo4j
         else pulumi.Output.from_input(""),
         gemini_secret_arn=secrets.gemini_api_key.arn,
-        gemini_embedding_model=gemini_embedding_model,
+        llm_embedding_model=llm_embedding_model,
         database_secret_arn=database.connection_secret.arn,
         database_security_group_id=database.security_group.id,
         image_tag="latest",

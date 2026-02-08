@@ -22,7 +22,7 @@ class SyncWorkerComponent(pulumi.ComponentResource):
         sync_queue_arn: pulumi.Input[str],
         neo4j_secret_arn: pulumi.Input[str],
         gemini_secret_arn: pulumi.Input[str],
-        gemini_embedding_model: str,
+        llm_embedding_model: str,
         database_secret_arn: pulumi.Input[str],
         database_security_group_id: pulumi.Input[str],
         image_tag: str = "latest",
@@ -40,7 +40,7 @@ class SyncWorkerComponent(pulumi.ComponentResource):
             sync_queue_arn: ARN of the snippet sync SQS queue.
             neo4j_secret_arn: ARN of Neo4j credentials secret.
             gemini_secret_arn: ARN of Gemini API key secret.
-            gemini_embedding_model: Gemini embedding model name.
+            llm_embedding_model: LLM embedding model name.
             database_secret_arn: ARN of database connection secret.
             database_security_group_id: Security group ID for database access.
             image_tag: Docker image tag.
@@ -202,7 +202,7 @@ class SyncWorkerComponent(pulumi.ComponentResource):
                     "NEO4J_SECRET_ARN": neo4j_secret_arn,
                     "GEMINI_API_KEY_SECRET_ARN": gemini_secret_arn,
                     "DATABASE_SECRET_ARN": database_secret_arn,
-                    "GEMINI_EMBEDDING_MODEL": gemini_embedding_model,
+                    "LLM_EMBEDDING_MODEL": llm_embedding_model,
                 },
             ),
             tracing_config=aws.lambda_.FunctionTracingConfigArgs(

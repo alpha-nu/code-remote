@@ -2,5 +2,14 @@ config:
   aws:region: us-east-1
   code-remote:vpc_cidr: "10.1.0.0/16"
   code-remote:az_count: "2"
-  code-remote:gemini_model: gemini-2.5-flash
-  code-remote:gemini_embedding_model: gemini-embedding-001
+  code-remote:llm:
+    analysis:
+      model: gemini-2.5-flash
+      temperature: 0.1
+      max_tokens: 2048
+    cypher:
+      model: gemini-2.5-flash
+      temperature: 0.1
+      max_tokens: 500
+    embedding:
+      model: gemini-embedding-001

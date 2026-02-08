@@ -88,14 +88,15 @@ class CypherGenerator:
         try:
             prompt = self.prompt_template.format(user_query=user_query)
 
-            # Config for generation
-            temperature = 0.1  # Low temperature for deterministic output
-            max_output_tokens = 500
+            # Config for generation (from settings)
+            model = settings.resolved_llm_cypher_model
+            temperature = settings.llm_cypher_temperature
+            max_output_tokens = settings.llm_cypher_max_tokens
 
             # Generate with X-Ray tracing
             with llm_span(
                 "generate_content",
-                settings.gemini_model,
+                model,
                 operation_type="text_to_cypher",
                 temperature=temperature,
                 max_output_tokens=max_output_tokens,
@@ -103,7 +104,7 @@ class CypherGenerator:
                 user_query=user_query,
             ) as span:
                 response = self.client.models.generate_content(
-                    model=settings.gemini_model,
+                    model=model,
                     contents=prompt,
                     config=types.GenerateContentConfig(
                         temperature=temperature,

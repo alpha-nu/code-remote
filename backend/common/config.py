@@ -96,10 +96,26 @@ class Settings(BaseSettings):
     database_url: str = ""
     database_secret_arn: str = ""  # AWS Secrets Manager ARN for DB connection
 
-    # Gemini LLM (API key only - no GCP project required)
+    # Gemini LLM - API Key (shared across all LLM operations)
     gemini_api_key: str = ""
     gemini_api_key_secret_arn: str = ""  # AWS Secrets Manager ARN
-    gemini_model: str = ""  # Model name for Gemini API
+
+    # LLM Analysis settings (complexity analysis)
+    llm_analysis_model: str = ""  # e.g., gemini-2.5-flash
+    llm_analysis_temperature: float = 0.1
+    llm_analysis_max_tokens: int = 2048
+
+    # LLM Cypher settings (Text-to-Cypher generation)
+    llm_cypher_model: str = ""  # e.g., gemini-2.5-flash
+    llm_cypher_temperature: float = 0.1
+    llm_cypher_max_tokens: int = 500
+
+    # LLM Embedding settings
+    llm_embedding_model: str = ""  # e.g., gemini-embedding-001
+
+    # Legacy: kept for backward compatibility (maps to llm_analysis_model)
+    gemini_model: str = ""  # Deprecated: use llm_analysis_model
+    gemini_embedding_model: str = ""  # Deprecated: use llm_embedding_model
 
     # AWS Configuration
     aws_region: str = ""  # AWS region for all services
@@ -114,9 +130,6 @@ class Settings(BaseSettings):
     neo4j_password: str = ""
     neo4j_database: str = ""
     neo4j_secret_arn: str = ""  # AWS Secrets Manager ARN for Neo4j credentials
-
-    # Embedding (Gemini embedding model)
-    gemini_embedding_model: str = ""
 
     # Snippet Sync Queue (SQS FIFO)
     snippet_sync_queue_url: str = ""  # SQS FIFO queue for Neo4j sync events
@@ -146,6 +159,21 @@ class Settings(BaseSettings):
         if self.gemini_api_key_secret_arn:
             return get_secret_from_aws(self.gemini_api_key_secret_arn)
         return ""
+
+    @property
+    def resolved_llm_analysis_model(self) -> str:
+        """Get analysis model, falling back to legacy gemini_model."""
+        return self.llm_analysis_model or self.gemini_model or "gemini-2.5-flash"
+
+    @property
+    def resolved_llm_cypher_model(self) -> str:
+        """Get cypher model, falling back to legacy gemini_model."""
+        return self.llm_cypher_model or self.gemini_model or "gemini-2.5-flash"
+
+    @property
+    def resolved_llm_embedding_model(self) -> str:
+        """Get embedding model, falling back to legacy gemini_embedding_model."""
+        return self.llm_embedding_model or self.gemini_embedding_model or "gemini-embedding-001"
 
     @property
     def resolved_cognito_region(self) -> str:

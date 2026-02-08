@@ -44,12 +44,13 @@ class EmbeddingService:
         Returns:
             768-dimension embedding vector.
         """
-        model = f"models/{settings.gemini_embedding_model}"
+        embedding_model = settings.resolved_llm_embedding_model
+        model = f"models/{embedding_model}"
 
         # Use embed_content for embedding generation with 768 dimensions
         with llm_span(
             "embed_content",
-            settings.gemini_embedding_model,
+            embedding_model,
             prompt=text[:500],  # Truncate for tracing
             operation_type="embedding",
         ) as span:
@@ -80,11 +81,12 @@ class EmbeddingService:
         Returns:
             768-dimension embedding vector.
         """
-        model = f"models/{settings.gemini_embedding_model}"
+        embedding_model = settings.resolved_llm_embedding_model
+        model = f"models/{embedding_model}"
 
         with llm_span(
             "embed_content",
-            settings.gemini_embedding_model,
+            embedding_model,
             prompt=text[:500],  # Truncate for tracing
             operation_type="embedding_sync",
         ) as span:

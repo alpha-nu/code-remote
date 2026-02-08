@@ -94,21 +94,22 @@ Respond with JSON only:
         try:
             prompt = self._load_prompt_template().format(code=code)
 
-            # Config for generation
-            temperature = 0.1  # Low temperature for consistent analysis
-            max_output_tokens = 2048  # Increased for detailed responses
+            # Config for generation (from settings)
+            model = settings.resolved_llm_analysis_model
+            temperature = settings.llm_analysis_temperature
+            max_output_tokens = settings.llm_analysis_max_tokens
 
             # Generate response using the new SDK async API with tracing
             with llm_span(
                 "generate_content",
-                self._model or "unknown",
+                model,
                 operation_type="complexity_analysis",
                 temperature=temperature,
                 max_output_tokens=max_output_tokens,
                 prompt_chars=len(prompt),
             ) as span:
                 response = await self._client.aio.models.generate_content(
-                    model=self._model,
+                    model=model,
                     contents=prompt,
                     config=types.GenerateContentConfig(
                         temperature=temperature,

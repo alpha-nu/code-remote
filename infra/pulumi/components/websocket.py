@@ -61,6 +61,33 @@ class WebSocketComponent(pulumi.ComponentResource):
             opts=pulumi.ResourceOptions(parent=self),
         )
 
+        # Policy to allow Lambda to post to WebSocket connections
+        ws_manage_policy = aws.iam.Policy(
+            f"{name}-ws-manage-policy",
+            policy=self.api.execution_arn.apply(
+                lambda arn: json.dumps(
+                    {
+                        "Version": "2012-10-17",
+                        "Statement": [
+                            {
+                                "Effect": "Allow",
+                                "Action": "execute-api:ManageConnections",
+                                "Resource": f"{arn}/*",
+                            }
+                        ],
+                    }
+                )
+            ),
+            opts=pulumi.ResourceOptions(parent=self),
+        )
+
+        aws.iam.RolePolicyAttachment(
+            f"{name}-ws-manage-attach",
+            role=self.lambda_role.name,
+            policy_arn=ws_manage_policy.arn,
+            opts=pulumi.ResourceOptions(parent=self),
+        )
+
         # CloudWatch Log Group
         self.log_group = aws.cloudwatch.LogGroup(
             f"{name}-ws-logs",
@@ -70,19 +97,21 @@ class WebSocketComponent(pulumi.ComponentResource):
             opts=pulumi.ResourceOptions(parent=self),
         )
 
-        # Simple Lambda handler for WebSocket events
-        # Returns connection_id on connect, handles disconnect cleanup
+        # Lambda handler for WebSocket events
+        # Uses API Gateway Management API to send messages back to clients
         handler_code = '''
 import json
+import boto3
+import os
 
 def handler(event, context):
     """Handle WebSocket connect/disconnect/default events."""
     route_key = event.get("requestContext", {}).get("routeKey")
     connection_id = event.get("requestContext", {}).get("connectionId")
+    domain = event.get("requestContext", {}).get("domainName")
+    stage = event.get("requestContext", {}).get("stage")
 
     if route_key == "$connect":
-        # Return connection_id to client via response body isn't supported
-        # Client will receive it in subsequent message
         print(f"Connected: {connection_id}")
         return {"statusCode": 200}
 
@@ -91,19 +120,29 @@ def handler(event, context):
         return {"statusCode": 200}
 
     elif route_key == "$default":
-        # Handle ping/pong and return connection_id
+        # Handle ping/pong - send connection_id back via Management API
         body = json.loads(event.get("body", "{}"))
         action = body.get("action")
 
         if action == "ping":
-            # Client uses this to get their connection_id
-            return {
-                "statusCode": 200,
-                "body": json.dumps({
-                    "type": "pong",
-                    "connection_id": connection_id
-                })
-            }
+            # Use Management API to send message back to client
+            endpoint_url = f"https://{domain}/{stage}"
+            client = boto3.client(
+                "apigatewaymanagementapi",
+                endpoint_url=endpoint_url
+            )
+            try:
+                client.post_to_connection(
+                    ConnectionId=connection_id,
+                    Data=json.dumps({
+                        "type": "pong",
+                        "connection_id": connection_id
+                    }).encode("utf-8")
+                )
+            except client.exceptions.GoneException:
+                print(f"Connection {connection_id} is gone")
+            except Exception as e:
+                print(f"Error sending to {connection_id}: {e}")
 
         return {"statusCode": 200}
 

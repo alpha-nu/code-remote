@@ -2,8 +2,6 @@
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 
 class TestExecuteEndpoint:
     """Tests for POST /execute endpoint."""
@@ -269,51 +267,59 @@ class TestAsyncExecuteEndpoint:
         assert "job_id" in data
         assert len(data["job_id"]) == 36  # UUID format
 
-    @pytest.mark.skip(reason="Requires integration test setup with actual SQS mocking")
-    def test_async_execute_queues_job(self, monkeypatch):
-        """Test that async execute queues job successfully."""
-        # Set environment before importing
-        import os
+    def test_async_execute_queues_job_with_sqs(self, monkeypatch):
+        """Test that async execute queues job to SQS when configured."""
+        from starlette.testclient import TestClient
 
-        os.environ["EXECUTION_QUEUE_URL"] = (
-            "https://sqs.us-east-1.amazonaws.com/123456789/test-queue.fifo"
-        )
-        os.environ["DEV_AUTH_BYPASS"] = "true"
-
-        # Clear cached settings
-        from common import config
-
-        config.get_settings.cache_clear()
-
-        from fastapi.testclient import TestClient
-
+        from api.auth.dependencies import get_current_user
+        from api.auth.models import User
         from api.main import app
+        from api.routers import execution
+        from common.config import settings
 
-        client = TestClient(app)
+        # Setup test user
+        test_user = User(
+            id="cognito-sub-123",
+            email="test@example.com",
+            username="testuser",
+            groups=None,
+        )
+        app.dependency_overrides[get_current_user] = lambda: test_user
 
         # Mock SQS client
         mock_sqs = MagicMock()
-        with patch("api.routers.execution.get_sqs_client", return_value=mock_sqs):
-            response = client.post(
-                "/execute/async",
-                json={
-                    "code": 'print("hello")',
-                    "connection_id": "test-connection-123",
-                },
-            )
 
-        assert response.status_code == 200
-        data = response.json()
-        assert data["status"] == "queued"
-        assert "job_id" in data
-        assert len(data["job_id"]) == 36  # UUID format
+        # Temporarily set execution_queue_url on the settings singleton
+        original_url = settings.execution_queue_url
+        monkeypatch.setattr(
+            settings,
+            "execution_queue_url",
+            "https://sqs.us-east-1.amazonaws.com/123456789/test-queue.fifo",
+        )
 
-        # Verify SQS was called
-        mock_sqs.send_message.assert_called_once()
+        try:
+            with patch.object(execution, "get_sqs_client", return_value=mock_sqs):
+                with TestClient(app) as client:
+                    response = client.post(
+                        "/execute/async",
+                        json={
+                            "code": 'print("hello")',
+                            "connection_id": "test-connection-123",
+                        },
+                    )
 
-        # Cleanup
-        del os.environ["EXECUTION_QUEUE_URL"]
-        config.get_settings.cache_clear()
+            assert response.status_code == 200
+            data = response.json()
+            assert data["status"] == "queued"
+            assert "job_id" in data
+            assert len(data["job_id"]) == 36  # UUID format
+
+            # Verify SQS was called
+            mock_sqs.send_message.assert_called_once()
+        finally:
+            # Cleanup
+            app.dependency_overrides.pop(get_current_user, None)
+            monkeypatch.setattr(settings, "execution_queue_url", original_url)
 
     def test_async_execute_missing_connection_id(self, authenticated_client):
         """Test that missing connection_id is rejected."""

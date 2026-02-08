@@ -12,6 +12,11 @@ class User:
     username: str | None = None
     groups: list[str] | None = None
 
+    @property
+    def sub(self) -> str:
+        """Alias for id (Cognito sub claim)."""
+        return self.id
+
     @classmethod
     def from_token_payload(cls, payload: dict) -> "User":
         """Create User from decoded JWT token payload.

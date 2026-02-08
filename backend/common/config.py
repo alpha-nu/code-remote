@@ -199,6 +199,50 @@ class Settings(BaseSettings):
         return model
 
     @property
+    def resolved_llm_analysis_temperature(self) -> float:
+        """Get analysis temperature.
+
+        Raises:
+            ValueError: If not configured.
+        """
+        if self.llm_analysis_temperature is None:
+            raise ValueError("LLM_ANALYSIS_TEMPERATURE must be set")
+        return self.llm_analysis_temperature
+
+    @property
+    def resolved_llm_analysis_max_tokens(self) -> int:
+        """Get analysis max tokens.
+
+        Raises:
+            ValueError: If not configured.
+        """
+        if self.llm_analysis_max_tokens is None:
+            raise ValueError("LLM_ANALYSIS_MAX_TOKENS must be set")
+        return self.llm_analysis_max_tokens
+
+    @property
+    def resolved_llm_cypher_temperature(self) -> float:
+        """Get cypher temperature.
+
+        Raises:
+            ValueError: If not configured.
+        """
+        if self.llm_cypher_temperature is None:
+            raise ValueError("LLM_CYPHER_TEMPERATURE must be set")
+        return self.llm_cypher_temperature
+
+    @property
+    def resolved_llm_cypher_max_tokens(self) -> int:
+        """Get cypher max tokens.
+
+        Raises:
+            ValueError: If not configured.
+        """
+        if self.llm_cypher_max_tokens is None:
+            raise ValueError("LLM_CYPHER_MAX_TOKENS must be set")
+        return self.llm_cypher_max_tokens
+
+    @property
     def resolved_cognito_region(self) -> str:
         """Get Cognito region, falling back to aws_region if not set."""
         return self.cognito_region or self.aws_region

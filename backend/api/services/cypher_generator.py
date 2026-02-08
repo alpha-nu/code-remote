@@ -88,15 +88,10 @@ class CypherGenerator:
         try:
             prompt = self.prompt_template.format(user_query=user_query)
 
-            # Config for generation (from settings - all must be configured)
+            # Config for generation (from settings - all use resolved_ to validate)
             model = settings.resolved_llm_cypher_model
-            temperature = settings.llm_cypher_temperature
-            max_output_tokens = settings.llm_cypher_max_tokens
-
-            if temperature is None:
-                raise ValueError("LLM_CYPHER_TEMPERATURE must be set")
-            if max_output_tokens is None:
-                raise ValueError("LLM_CYPHER_MAX_TOKENS must be set")
+            temperature = settings.resolved_llm_cypher_temperature
+            max_output_tokens = settings.resolved_llm_cypher_max_tokens
 
             # Generate with X-Ray tracing
             with llm_span(

@@ -8,8 +8,7 @@ import json
 import logging
 from typing import Any
 
-from api.services.neo4j_service import neo4j_driver_context
-from common.config import settings
+from api.services.neo4j_service import get_neo4j_credentials, neo4j_driver_context
 from neo4j_migrations.runner import Neo4jMigrationRunner
 
 # Configure logging
@@ -30,9 +29,14 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     logger.info("Starting Neo4j migrations...")
 
     try:
+        # Get credentials (includes database name from secret)
+        credentials = get_neo4j_credentials()
+        database = credentials["database"]
+        logger.info(f"Using database: {database}")
+
         # Use context manager for migrations - creates fresh driver, closes on exit
         with neo4j_driver_context() as driver:
-            runner = Neo4jMigrationRunner(driver, database=settings.neo4j_database)
+            runner = Neo4jMigrationRunner(driver, database=database)
 
             # Get current status
             status_before = runner.get_status()

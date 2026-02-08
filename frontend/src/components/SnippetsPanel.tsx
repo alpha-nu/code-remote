@@ -118,6 +118,8 @@ export function SnippetsPanel() {
         setSnippetCodes(prev => ({ ...prev, [id]: snippet.code }));
       } catch (err) {
         console.error('Failed to fetch snippet code:', err);
+        // Set empty string to prevent infinite loading state
+        setSnippetCodes(prev => ({ ...prev, [id]: '# Error loading snippet code' }));
       }
     }
   };

@@ -59,32 +59,32 @@ export function SnippetsPanel() {
   const isComplexityFilterMode = activeComplexityFilter !== null;
   const snippets: SnippetSummary[] = isSearchMode
     ? (searchData?.results || []).map(r => ({
-        id: r.id,
-        title: r.title,
+        id: r.snippet_id,
+        title: r.title || 'Untitled',
         description: r.description,
-        timeComplexity: r.timeComplexity,
-        spaceComplexity: r.spaceComplexity,
-        isStarred: r.isStarred,
-        createdAt: r.createdAt,
+        timeComplexity: r.time_complexity,
+        spaceComplexity: r.space_complexity,
+        isStarred: false, // Search results don't include this
+        createdAt: new Date().toISOString(), // Not included in search results
         // Fill in missing fields for search results
         language: r.language || 'python',
         executionCount: 0,
         lastExecutionAt: null,
-        updatedAt: r.createdAt,
+        updatedAt: new Date().toISOString(),
       }))
     : isComplexityFilterMode
     ? (complexityData?.results || []).map(r => ({
-        id: r.id,
-        title: r.title,
+        id: r.snippet_id,
+        title: r.title || 'Untitled',
         description: r.description,
-        timeComplexity: r.timeComplexity,
-        spaceComplexity: r.spaceComplexity,
-        isStarred: r.isStarred,
-        createdAt: r.createdAt,
+        timeComplexity: r.time_complexity,
+        spaceComplexity: r.space_complexity,
+        isStarred: false,
+        createdAt: new Date().toISOString(),
         language: r.language || 'python',
         executionCount: 0,
         lastExecutionAt: null,
-        updatedAt: r.createdAt,
+        updatedAt: new Date().toISOString(),
       }))
     : regularSnippets;
 
@@ -220,6 +220,15 @@ export function SnippetsPanel() {
       {/* Panel content */}
       {isOpen && (
         <div className="snippets-content">
+          <button
+            className="add-snippet-button"
+            title="Create new snippet"
+            onClick={() => setIsAddModalOpen(true)}
+          >
+            <span className="button-icon">✚</span>
+            <span>New Snippet</span>
+          </button>
+
           <div className="snippets-header">
             <div className="snippets-search">
               <input
@@ -250,15 +259,6 @@ export function SnippetsPanel() {
                   ×
                 </button>
               )}
-            </div>
-            <div className="snippets-actions">
-              <button
-                className="snippet-action-icon add"
-                title="Create new snippet"
-                onClick={() => setIsAddModalOpen(true)}
-              >
-                ✚
-              </button>
             </div>
           </div>
 

@@ -155,5 +155,3 @@ echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━�
 echo ""
 echo -e "${GREEN}Summary: ${TRACE_COUNT} trace(s) processed${NC}"
 echo ""
-echo "View in AWS Console:"
-echo "  https://us-east-1.console.aws.amazon.com/xray/home?region=us-east-1#/traces"

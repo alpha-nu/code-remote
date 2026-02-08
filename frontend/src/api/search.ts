@@ -4,35 +4,33 @@
 
 import apiClient from './client';
 
+// API response types (snake_case from backend)
 export interface SearchResultItem {
-  id: string;
-  title: string;
+  snippet_id: string;
+  title: string | null;
   description: string | null;
-  timeComplexity: string | null;
-  spaceComplexity: string | null;
+  time_complexity: string | null;
+  space_complexity: string | null;
   score: number;
   language: string;
-  isStarred: boolean;
-  createdAt: string;
 }
 
 export interface UnifiedSearchResponse {
   query: string;
   results: SearchResultItem[];
-  totalCount: number;
-  method: 'cypher' | 'semantic' | 'fallback';
-  cypherQuery: string | null;
+  total: number;
+  method: 'cypher' | 'semantic';
 }
 
 export interface SimilarSnippetsResponse {
-  snippetId: string;
-  results: SearchResultItem[];
-  totalCount: number;
+  source_snippet_id: string;
+  similar: SearchResultItem[];
+  total: number;
 }
 
 export interface ComplexityFilterResponse {
-  complexityType: 'time' | 'space';
-  complexityValue: string;
+  complexity_type: 'time' | 'space';
+  complexity_value: string;
   results: SearchResultItem[];
   total: number;
 }

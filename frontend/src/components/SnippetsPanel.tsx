@@ -111,8 +111,8 @@ export function SnippetsPanel() {
     const newSelected = selectedSnippet === id ? null : id;
     setSelectedSnippet(newSelected);
 
-    // Fetch code if expanding and we don't have it cached
-    if (newSelected && !snippetCodes[id]) {
+    // Always fetch fresh code when expanding (don't rely on potentially stale cache)
+    if (newSelected) {
       try {
         const snippet = await snippetsApi.get(id);
         setSnippetCodes(prev => ({ ...prev, [id]: snippet.code }));
@@ -368,7 +368,11 @@ export function SnippetsPanel() {
                   {selectedSnippet === snippet.id && (
                     <div className="snippet-code-preview">
                       <div className="snippet-preview-code">
-                        <pre>{snippet.id === loadedSnippetId ? code : (snippetCodes[snippet.id] || 'Loading code...')}</pre>
+                        <pre>{
+                          snippet.id === loadedSnippetId
+                            ? code
+                            : (snippetCodes[snippet.id] || 'Loading code...')
+                        }</pre>
                       </div>
                       <div className="snippet-actions">
                         <button

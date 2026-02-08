@@ -90,7 +90,7 @@ export function SnippetsPanel() {
 
   const deleteSnippet = useDeleteSnippet();
   const updateSnippet = useUpdateSnippet();
-  const { code, setCode, setResult, setAnalysis, setLastAnalyzedCode } = useEditorStore();
+  const { code, setCode, setResult, setAnalysis, setLastAnalyzedCode, setHasRun } = useEditorStore();
   const {
     loadedSnippetId,
     loadedSnippetCode,
@@ -176,6 +176,7 @@ export function SnippetsPanel() {
       setResult(null); // Clear output when loading snippet
       setAnalysis(null); // Clear analysis when loading snippet
       setLastAnalyzedCode(null); // Clear last analyzed code to hide "Analyze Code" button
+      setHasRun(false); // Clear hasRun flag to hide "Analyze Code" button
       setLoadedSnippet(snippetId, snippet.title || 'Untitled', snippet.code);
     } catch (err) {
       console.error('Failed to load snippet:', err);

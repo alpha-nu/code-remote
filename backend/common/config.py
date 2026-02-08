@@ -101,17 +101,19 @@ class Settings(BaseSettings):
     gemini_api_key_secret_arn: str = ""  # AWS Secrets Manager ARN
 
     # LLM Analysis settings (complexity analysis)
-    llm_analysis_model: str = ""  # e.g., gemini-2.5-flash
-    llm_analysis_temperature: float = 0.1
-    llm_analysis_max_tokens: int = 2048
+    # All values MUST be set via environment variables (no defaults)
+    llm_analysis_model: str = ""  # Required: e.g., gemini-2.5-flash
+    llm_analysis_temperature: float | None = None  # Required: e.g., 0.1
+    llm_analysis_max_tokens: int | None = None  # Required: e.g., 2048
 
     # LLM Cypher settings (Text-to-Cypher generation)
-    llm_cypher_model: str = ""  # e.g., gemini-2.5-flash
-    llm_cypher_temperature: float = 0.1
-    llm_cypher_max_tokens: int = 500
+    # All values MUST be set via environment variables (no defaults)
+    llm_cypher_model: str = ""  # Required: e.g., gemini-2.5-flash
+    llm_cypher_temperature: float | None = None  # Required: e.g., 0.1
+    llm_cypher_max_tokens: int | None = None  # Required: e.g., 500
 
     # LLM Embedding settings
-    llm_embedding_model: str = ""  # e.g., gemini-embedding-001
+    llm_embedding_model: str = ""  # Required: e.g., gemini-embedding-001
 
     # Legacy: kept for backward compatibility (maps to llm_analysis_model)
     gemini_model: str = ""  # Deprecated: use llm_analysis_model
@@ -162,18 +164,39 @@ class Settings(BaseSettings):
 
     @property
     def resolved_llm_analysis_model(self) -> str:
-        """Get analysis model, falling back to legacy gemini_model."""
-        return self.llm_analysis_model or self.gemini_model or "gemini-2.5-flash"
+        """Get analysis model, falling back to legacy gemini_model.
+
+        Raises:
+            ValueError: If no model is configured.
+        """
+        model = self.llm_analysis_model or self.gemini_model
+        if not model:
+            raise ValueError("LLM_ANALYSIS_MODEL or GEMINI_MODEL must be set")
+        return model
 
     @property
     def resolved_llm_cypher_model(self) -> str:
-        """Get cypher model, falling back to legacy gemini_model."""
-        return self.llm_cypher_model or self.gemini_model or "gemini-2.5-flash"
+        """Get cypher model, falling back to legacy gemini_model.
+
+        Raises:
+            ValueError: If no model is configured.
+        """
+        model = self.llm_cypher_model or self.gemini_model
+        if not model:
+            raise ValueError("LLM_CYPHER_MODEL or GEMINI_MODEL must be set")
+        return model
 
     @property
     def resolved_llm_embedding_model(self) -> str:
-        """Get embedding model, falling back to legacy gemini_embedding_model."""
-        return self.llm_embedding_model or self.gemini_embedding_model or "gemini-embedding-001"
+        """Get embedding model, falling back to legacy gemini_embedding_model.
+
+        Raises:
+            ValueError: If no model is configured.
+        """
+        model = self.llm_embedding_model or self.gemini_embedding_model
+        if not model:
+            raise ValueError("LLM_EMBEDDING_MODEL or GEMINI_EMBEDDING_MODEL must be set")
+        return model
 
     @property
     def resolved_cognito_region(self) -> str:

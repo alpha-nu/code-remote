@@ -94,10 +94,15 @@ Respond with JSON only:
         try:
             prompt = self._load_prompt_template().format(code=code)
 
-            # Config for generation (from settings)
+            # Config for generation (from settings - all must be configured)
             model = settings.resolved_llm_analysis_model
             temperature = settings.llm_analysis_temperature
             max_output_tokens = settings.llm_analysis_max_tokens
+
+            if temperature is None:
+                raise ValueError("LLM_ANALYSIS_TEMPERATURE must be set")
+            if max_output_tokens is None:
+                raise ValueError("LLM_ANALYSIS_MAX_TOKENS must be set")
 
             # Generate response using the new SDK async API with tracing
             with llm_span(

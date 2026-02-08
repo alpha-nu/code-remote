@@ -99,10 +99,10 @@ class Settings(BaseSettings):
     # Gemini LLM (API key only - no GCP project required)
     gemini_api_key: str = ""
     gemini_api_key_secret_arn: str = ""  # AWS Secrets Manager ARN
-    gemini_model: str = "gemini-2.5-flash"  # Model name for Gemini API
+    gemini_model: str = ""  # Model name for Gemini API
 
     # AWS Configuration
-    aws_region: str = "us-east-1"  # Default AWS region for all services
+    aws_region: str = ""  # AWS region for all services
 
     # Async Execution (SQS + WebSocket)
     execution_queue_url: str = ""  # SQS FIFO queue for async execution jobs
@@ -110,13 +110,13 @@ class Settings(BaseSettings):
 
     # Neo4j AuraDB
     neo4j_uri: str = ""  # e.g., neo4j+ssc://xxx.databases.neo4j.io:7687
-    neo4j_username: str = "neo4j"
+    neo4j_username: str = ""
     neo4j_password: str = ""
-    neo4j_database: str = "neo4j"
+    neo4j_database: str = ""
     neo4j_secret_arn: str = ""  # AWS Secrets Manager ARN for Neo4j credentials
 
     # Embedding (Gemini embedding model)
-    gemini_embedding_model: str = "gemini-embedding-001"
+    gemini_embedding_model: str = ""
 
     # Snippet Sync Queue (SQS FIFO)
     snippet_sync_queue_url: str = ""  # SQS FIFO queue for Neo4j sync events

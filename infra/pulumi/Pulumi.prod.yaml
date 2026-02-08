@@ -2,4 +2,5 @@ config:
   aws:region: us-east-1
   code-remote:vpc_cidr: "10.2.0.0/16"
   code-remote:az_count: "3"
-  code-remote:gemini_model: gemini-2.5-flash
+  code-remote:gemini_model: gemini-3-flash-preview
+  code-remote:gemini_embedding_model: gemini-embedding-001

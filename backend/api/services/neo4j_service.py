@@ -17,6 +17,9 @@ def get_neo4j_credentials() -> dict[str, str]:
 
     Returns:
         Dictionary with uri, username, password, and database.
+
+    Raises:
+        ValueError: If Neo4j credentials are not configured or secret is malformed.
     """
     # Try direct settings first
     if settings.neo4j_uri and settings.neo4j_password:
@@ -34,31 +37,23 @@ def get_neo4j_credentials() -> dict[str, str]:
             f"Fetching Neo4j credentials from Secrets Manager: {settings.neo4j_secret_arn}"
         )
         secret_string = get_secret_from_aws(settings.neo4j_secret_arn)
-        if secret_string:
-            try:
-                secret_data = json.loads(secret_string)
-                logger.info(
-                    f"Neo4j credentials loaded from Secrets Manager (uri: {secret_data.get('uri', '')[:30]}...)"
-                )
-                return {
-                    "uri": secret_data.get("uri", ""),
-                    "username": secret_data.get("username", "neo4j"),
-                    "password": secret_data.get("password", ""),
-                    "database": secret_data.get("database", "neo4j"),
-                }
-            except json.JSONDecodeError:
-                logger.error("Failed to parse Neo4j secret as JSON")
-        else:
-            logger.warning(f"Failed to retrieve Neo4j secret from {settings.neo4j_secret_arn}")
-    else:
-        logger.debug("No Neo4j credentials configured (no direct settings or secret ARN)")
+        if not secret_string:
+            raise ValueError(f"Failed to retrieve Neo4j secret from {settings.neo4j_secret_arn}")
 
-    return {
-        "uri": "",
-        "username": "neo4j",
-        "password": "",
-        "database": "neo4j",
-    }
+        secret_data = json.loads(secret_string)  # Let JSONDecodeError propagate
+        logger.info(
+            f"Neo4j credentials loaded from Secrets Manager (uri: {secret_data['uri'][:30]}...)"
+        )
+        return {
+            "uri": secret_data["uri"],
+            "username": secret_data["username"],
+            "password": secret_data["password"],
+            "database": secret_data["database"],
+        }
+
+    raise ValueError(
+        "Neo4j credentials not configured. Set NEO4J_URI and NEO4J_PASSWORD or NEO4J_SECRET_ARN."
+    )
 
 
 # Global driver instance (singleton for high-throughput handlers)

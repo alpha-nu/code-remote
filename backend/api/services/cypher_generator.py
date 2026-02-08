@@ -88,7 +88,7 @@ class CypherGenerator:
             prompt = self.prompt_template.format(user_query=user_query)
 
             response = self.client.models.generate_content(
-                model="gemini-2.0-flash",
+                model=settings.gemini_model,
                 contents=prompt,
                 config=types.GenerateContentConfig(
                     temperature=0.1,  # Low temperature for deterministic output

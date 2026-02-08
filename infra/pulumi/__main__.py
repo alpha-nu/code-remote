@@ -36,6 +36,9 @@ aws_config = pulumi.Config("aws")
 environment = pulumi.get_stack()  # dev, staging, or prod
 aws_region = aws_config.require("region")  # Get from aws:region config
 gemini_model = config.require("gemini_model")  # Required: e.g., gemini-2.5-flash
+gemini_embedding_model = config.require(
+    "gemini_embedding_model"
+)  # Required: e.g., gemini-embedding-001
 neo4j_uri = config.get("neo4j_uri") or ""  # Optional: Neo4j AuraDB URI
 neo4j_password = config.get_secret(
     "neo4j_password"
@@ -193,6 +196,7 @@ sync_worker = (
         if neo4j
         else pulumi.Output.from_input(""),
         gemini_secret_arn=secrets.gemini_api_key.arn,
+        gemini_embedding_model=gemini_embedding_model,
         database_secret_arn=database.connection_secret.arn,
         database_security_group_id=database.security_group.id,
         image_tag="latest",

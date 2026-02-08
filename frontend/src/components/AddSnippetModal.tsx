@@ -5,6 +5,7 @@
 import { useState } from 'react';
 import { useCreateSnippet } from '../hooks/useSnippets';
 import { useEditorStore } from '../store/editorStore';
+import { useSnippetsStore } from '../store/snippetsStore';
 import './AddSnippetModal.css';
 
 interface AddSnippetModalProps {
@@ -18,6 +19,7 @@ export function AddSnippetModal({ isOpen, onClose }: AddSnippetModalProps) {
   const [isSaving, setIsSaving] = useState(false);
 
   const { code } = useEditorStore();
+  const { setLoadedSnippet } = useSnippetsStore();
   const createSnippet = useCreateSnippet();
 
   if (!isOpen) return null;
@@ -37,12 +39,15 @@ export function AddSnippetModal({ isOpen, onClose }: AddSnippetModalProps) {
     setIsSaving(true);
 
     try {
-      await createSnippet.mutateAsync({
+      const newSnippet = await createSnippet.mutateAsync({
         code: code,
         title: title.trim(),
         description: description.trim() || undefined,
         language: 'python',
       });
+
+      // Load the newly created snippet (ejecting any previously loaded snippet)
+      setLoadedSnippet(newSnippet.id, newSnippet.title || 'Untitled', newSnippet.code);
 
       // Success - close modal and reset form
       setTitle('');

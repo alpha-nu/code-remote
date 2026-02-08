@@ -145,6 +145,7 @@ api = ServerlessAPIComponent(
         "COGNITO_USER_POOL_ID": cognito.user_pool.id,
         "COGNITO_CLIENT_ID": cognito.user_pool_client.id,
         "GEMINI_MODEL": gemini_model,
+        "GEMINI_EMBEDDING_MODEL": gemini_embedding_model,
         "DEBUG": "false" if environment == "prod" else "true",
         "CORS_ORIGINS": '["*"]',  # API Gateway handles CORS
         "DATABASE_SECRET_ARN": database.connection_secret.arn,

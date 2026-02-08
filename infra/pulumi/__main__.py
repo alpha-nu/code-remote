@@ -135,6 +135,7 @@ api = ServerlessAPIComponent(
     secrets_arn=secrets.gemini_api_key.arn,
     queue_url=messaging.queue.url,
     database_security_group_id=database.security_group.id,
+    neo4j_secret_arn=neo4j.credentials_secret.arn if neo4j else None,
     image_tag="latest",
     env_vars={
         # Note: AWS_REGION is automatically set by Lambda runtime

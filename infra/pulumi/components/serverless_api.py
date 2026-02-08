@@ -20,6 +20,7 @@ class ServerlessAPIComponent(pulumi.ComponentResource):
         secrets_arn: pulumi.Input[str],
         queue_url: pulumi.Input[str] | None = None,
         database_security_group_id: pulumi.Input[str] | None = None,
+        neo4j_secret_arn: pulumi.Input[str] | None = None,
         image_tag: str = "latest",
         env_vars: dict | None = None,
         tags: dict | None = None,
@@ -98,11 +99,15 @@ class ServerlessAPIComponent(pulumi.ComponentResource):
             opts=pulumi.ResourceOptions(parent=self),
         )
 
-        # Secrets Manager access policy (Gemini API key + Database connection)
-        # Use broader resource pattern to allow all code-remote secrets
+        # Secrets Manager access policy (Gemini API key + Database connection + Neo4j)
+        # Build list of secret ARNs to allow access to
+        secret_arns_to_allow = [secrets_arn]
+        if neo4j_secret_arn:
+            secret_arns_to_allow.append(neo4j_secret_arn)
+
         secrets_policy = aws.iam.Policy(
             f"{name}-secrets-policy",
-            policy=pulumi.Output.all(secrets_arn).apply(
+            policy=pulumi.Output.all(*secret_arns_to_allow).apply(
                 lambda args: json.dumps(
                     {
                         "Version": "2012-10-17",
@@ -113,8 +118,9 @@ class ServerlessAPIComponent(pulumi.ComponentResource):
                                     "secretsmanager:GetSecretValue",
                                 ],
                                 "Resource": [
-                                    args[0],  # Gemini API key
-                                    f"{args[0]}*",
+                                    arn for a in args for arn in [a, f"{a}*"] if a
+                                ]
+                                + [
                                     # Database secrets (pattern matches code-remote/*/db-*)
                                     f"arn:aws:secretsmanager:*:*:secret:code-remote/{environment}/db-*",
                                 ],

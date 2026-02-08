@@ -1,6 +1,6 @@
 """Unit tests for the Cypher generator service."""
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -206,6 +206,15 @@ class TestCypherGeneration:
     """Tests for the full generation flow."""
 
     @pytest.fixture
+    def mock_settings(self):
+        """Mock settings with LLM configuration."""
+        with patch("api.services.cypher_generator.settings") as mock:
+            mock.resolved_llm_cypher_model = "gemini-2.5-flash"
+            mock.resolved_llm_cypher_temperature = 0.1
+            mock.resolved_llm_cypher_max_tokens = 500
+            yield mock
+
+    @pytest.fixture
     def mock_client(self):
         """Create a mock Gemini client."""
         client = MagicMock()
@@ -221,7 +230,7 @@ class TestCypherGeneration:
         return gen
 
     @pytest.mark.asyncio
-    async def test_generate_returns_valid_cypher(self, generator, mock_client):
+    async def test_generate_returns_valid_cypher(self, mock_settings, generator, mock_client):
         """Test successful Cypher generation."""
         mock_response = MagicMock()
         mock_response.text = """
@@ -237,7 +246,9 @@ class TestCypherGeneration:
         assert "$user_id" in result
 
     @pytest.mark.asyncio
-    async def test_generate_returns_none_for_empty_response(self, generator, mock_client):
+    async def test_generate_returns_none_for_empty_response(
+        self, mock_settings, generator, mock_client
+    ):
         """Test that empty LLM response returns None."""
         mock_response = MagicMock()
         mock_response.text = ""
@@ -248,7 +259,9 @@ class TestCypherGeneration:
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_generate_returns_none_for_invalid_cypher(self, generator, mock_client):
+    async def test_generate_returns_none_for_invalid_cypher(
+        self, mock_settings, generator, mock_client
+    ):
         """Test that invalid Cypher (missing user_id) returns None."""
         mock_response = MagicMock()
         mock_response.text = """
@@ -262,7 +275,9 @@ class TestCypherGeneration:
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_generate_returns_none_for_write_operations(self, generator, mock_client):
+    async def test_generate_returns_none_for_write_operations(
+        self, mock_settings, generator, mock_client
+    ):
         """Test that write operations are rejected."""
         mock_response = MagicMock()
         mock_response.text = """
@@ -277,7 +292,7 @@ class TestCypherGeneration:
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_generate_handles_exceptions(self, generator, mock_client):
+    async def test_generate_handles_exceptions(self, mock_settings, generator, mock_client):
         """Test that exceptions are handled gracefully."""
         mock_client.models.generate_content.side_effect = Exception("API error")
 

@@ -157,7 +157,7 @@ class CypherGenerator:
             return cypher
 
         except Exception as e:
-            logger.error(f"Cypher generation failed: {e}")
+            logger.exception(f"Cypher generation failed: {e}")
             return None
 
     def _extract_cypher(self, response: str) -> str | None:

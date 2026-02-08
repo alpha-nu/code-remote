@@ -363,9 +363,9 @@ export function SnippetsPanel() {
                   {selectedSnippet === snippet.id && (
                     <div className="snippet-code-preview">
                       <div className="snippet-preview-code">
-                        <pre>{snippetCodes[snippet.id] || 'Loading code...'}</pre>
+                        <pre>{snippet.id === loadedSnippetId ? code : (snippetCodes[snippet.id] || 'Loading code...')}</pre>
                       </div>
-                      <div className="snippet-actions">
+                      <div className="snippet-actions">\
                         <button
                           className="snippet-action-icon load"
                           title="Load snippet into editor"

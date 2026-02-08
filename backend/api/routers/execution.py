@@ -103,6 +103,7 @@ async def execute_code_async(
                 QueueUrl=settings.execution_queue_url,
                 MessageBody=json.dumps(message),
                 MessageGroupId=user.sub,  # Group by user for ordering
+                MessageDeduplicationId=job_id,  # Unique per job
             )
         except Exception as e:
             raise HTTPException(

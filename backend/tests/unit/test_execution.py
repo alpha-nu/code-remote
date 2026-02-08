@@ -314,8 +314,12 @@ class TestAsyncExecuteEndpoint:
             assert "job_id" in data
             assert len(data["job_id"]) == 36  # UUID format
 
-            # Verify SQS was called
+            # Verify SQS was called with correct parameters
             mock_sqs.send_message.assert_called_once()
+            call_kwargs = mock_sqs.send_message.call_args.kwargs
+            assert "MessageGroupId" in call_kwargs
+            assert "MessageDeduplicationId" in call_kwargs
+            assert call_kwargs["MessageDeduplicationId"] == data["job_id"]
         finally:
             # Cleanup
             app.dependency_overrides.pop(get_current_user, None)

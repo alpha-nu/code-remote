@@ -90,7 +90,7 @@ export function SnippetsPanel() {
 
   const deleteSnippet = useDeleteSnippet();
   const updateSnippet = useUpdateSnippet();
-  const { code, setCode } = useEditorStore();
+  const { code, setCode, setResult } = useEditorStore();
   const {
     loadedSnippetId,
     loadedSnippetCode,
@@ -171,6 +171,7 @@ export function SnippetsPanel() {
       // Fetch full snippet (including code)
       const snippet = await snippetsApi.get(snippetId);
       setCode(snippet.code);
+      setResult(null); // Clear output when loading snippet
       setLoadedSnippet(snippetId, snippet.title || 'Untitled', snippet.code);
     } catch (err) {
       console.error('Failed to load snippet:', err);

@@ -39,6 +39,24 @@ uvicorn api.main:app --reload --port 8000
 curl http://localhost:8000/health
 ```
 
+#### macOS SSL Certificate Fix
+
+On macOS, you may encounter SSL certificate errors when the backend tries to validate Cognito JWT tokens:
+
+```
+SSL: CERTIFICATE_VERIFY_FAILED - unable to get local issuer certificate
+```
+
+Fix by installing `certifi` and setting the `SSL_CERT_FILE` environment variable:
+
+```bash
+# Install certifi in your virtual environment
+uv pip install certifi
+
+# Start with SSL certificates configured
+SSL_CERT_FILE=$(python -c "import certifi; print(certifi.where())") uvicorn api.main:app --reload --port 8000
+```
+
 ### Testing
 
 ```bash

@@ -57,6 +57,7 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
     except InvalidTokenError as e:
+        logger.warning(f"Token validation failed: {e}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=str(e),

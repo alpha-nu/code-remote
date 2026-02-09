@@ -21,6 +21,8 @@ class ServerlessAPIComponent(pulumi.ComponentResource):
         queue_url: pulumi.Input[str] | None = None,
         database_security_group_id: pulumi.Input[str] | None = None,
         neo4j_secret_arn: pulumi.Input[str] | None = None,
+        websocket_api_id: pulumi.Input[str] | None = None,
+        websocket_endpoint: pulumi.Input[str] | None = None,
         image_tag: str = "latest",
         env_vars: dict | None = None,
         tags: dict | None = None,
@@ -140,6 +142,35 @@ class ServerlessAPIComponent(pulumi.ComponentResource):
             opts=pulumi.ResourceOptions(parent=self),
         )
 
+        # WebSocket Management API access policy (for pushing analysis results)
+        if websocket_api_id:
+            ws_policy = aws.iam.Policy(
+                f"{name}-ws-policy",
+                policy=pulumi.Output.from_input(websocket_api_id).apply(
+                    lambda ws_id: json.dumps(
+                        {
+                            "Version": "2012-10-17",
+                            "Statement": [
+                                {
+                                    "Effect": "Allow",
+                                    "Action": ["execute-api:ManageConnections"],
+                                    "Resource": f"arn:aws:execute-api:*:*:{ws_id}/*",
+                                }
+                            ],
+                        }
+                    )
+                ),
+                tags=self.tags,
+                opts=pulumi.ResourceOptions(parent=self),
+            )
+
+            aws.iam.RolePolicyAttachment(
+                f"{name}-ws-attach",
+                role=self.role.name,
+                policy_arn=ws_policy.arn,
+                opts=pulumi.ResourceOptions(parent=self),
+            )
+
         # SQS access policy (for sending execution jobs)
         if queue_url:
             # Extract ARN from URL pattern
@@ -187,6 +218,10 @@ class ServerlessAPIComponent(pulumi.ComponentResource):
         # Add queue URL if provided
         if queue_url:
             lambda_env_vars["EXECUTION_QUEUE_URL"] = queue_url
+
+        # Add WebSocket endpoint if provided (for streaming analysis results)
+        if websocket_endpoint:
+            lambda_env_vars["WEBSOCKET_ENDPOINT"] = websocket_endpoint
 
         # Lambda Function (Container image based)
         self.function = aws.lambda_.Function(

@@ -152,6 +152,15 @@ neo4j = (
 )
 
 # =============================================================================
+# WebSocket - Real-time Communication
+# =============================================================================
+websocket = WebSocketComponent(
+    f"{environment}-websocket",
+    environment=environment,
+    tags=common_tags,
+)
+
+# =============================================================================
 # Serverless API - Lambda + API Gateway
 # =============================================================================
 api = ServerlessAPIComponent(
@@ -166,6 +175,8 @@ api = ServerlessAPIComponent(
     queue_url=messaging.queue.url,
     database_security_group_id=database.security_group.id,
     neo4j_secret_arn=neo4j.credentials_secret.arn if neo4j else None,
+    websocket_api_id=websocket.api.id,
+    websocket_endpoint=websocket.management_endpoint,
     image_tag="latest",
     env_vars={
         # Note: AWS_REGION is automatically set by Lambda runtime
@@ -190,15 +201,6 @@ api = ServerlessAPIComponent(
         "SNIPPET_SYNC_QUEUE_URL": neo4j.sync_queue.url if neo4j else "",
         "NEO4J_SECRET_ARN": neo4j.credentials_secret.arn if neo4j else "",
     },
-    tags=common_tags,
-)
-
-# =============================================================================
-# WebSocket - Real-time Communication
-# =============================================================================
-websocket = WebSocketComponent(
-    f"{environment}-websocket",
-    environment=environment,
     tags=common_tags,
 )
 

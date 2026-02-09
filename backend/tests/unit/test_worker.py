@@ -20,7 +20,7 @@ class TestWorkerHandler:
     @pytest.fixture
     def mock_api_client(self):
         """Mock API Gateway Management client."""
-        with patch("api.handlers.worker.get_api_gateway_management_client") as mock:
+        with patch("api.handlers.worker.get_apigw_management_client") as mock:
             client = MagicMock()
             mock.return_value = client
             yield client
@@ -216,39 +216,39 @@ class TestWorkerHandler:
         assert len(sent_data["security_violations"]) > 0
 
 
-class TestSendToConnection:
-    """Tests for send_to_connection helper."""
+class TestPostToConnection:
+    """Tests for the shared post_to_connection helper."""
 
-    def test_send_to_connection_success(self):
+    def test_post_to_connection_success(self):
         """Test successful message sending."""
-        from api.handlers.worker import send_to_connection
+        from common.websocket import post_to_connection
 
         mock_client = MagicMock()
-        result = send_to_connection(mock_client, "conn-123", {"type": "test", "data": "hello"})
+        result = post_to_connection(mock_client, "conn-123", {"type": "test", "data": "hello"})
 
         assert result is True
         mock_client.post_to_connection.assert_called_once()
 
-    def test_send_to_connection_gone_exception(self):
+    def test_post_to_connection_gone_exception(self):
         """Test handling of gone connection."""
         from botocore.exceptions import ClientError
 
-        from api.handlers.worker import send_to_connection
+        from common.websocket import post_to_connection
 
         mock_client = MagicMock()
         mock_client.post_to_connection.side_effect = ClientError(
             {"Error": {"Code": "GoneException"}}, "PostToConnection"
         )
 
-        result = send_to_connection(mock_client, "conn-123", {"type": "test"})
+        result = post_to_connection(mock_client, "conn-123", {"type": "test"})
 
         assert result is False
 
-    def test_send_to_connection_other_error_raises(self):
+    def test_post_to_connection_other_error_raises(self):
         """Test that other errors are re-raised."""
         from botocore.exceptions import ClientError
 
-        from api.handlers.worker import send_to_connection
+        from common.websocket import post_to_connection
 
         mock_client = MagicMock()
         mock_client.post_to_connection.side_effect = ClientError(
@@ -256,4 +256,4 @@ class TestSendToConnection:
         )
 
         with pytest.raises(ClientError):
-            send_to_connection(mock_client, "conn-123", {"type": "test"})
+            post_to_connection(mock_client, "conn-123", {"type": "test"})

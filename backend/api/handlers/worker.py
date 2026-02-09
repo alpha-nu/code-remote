@@ -8,59 +8,13 @@ import json
 import logging
 from typing import Any
 
-import boto3
-from botocore.exceptions import ClientError
-
 from common.config import settings
+from common.websocket import get_apigw_management_client, post_to_connection
 from executor.runner import execute_code
 
 # Configure logging
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
-
-
-def get_api_gateway_management_client(endpoint: str):
-    """Create API Gateway Management API client for WebSocket communication.
-
-    Args:
-        endpoint: The WebSocket API endpoint (e.g., https://xxx.execute-api.region.amazonaws.com/prod)
-
-    Returns:
-        Boto3 client for API Gateway Management API.
-    """
-    # Convert wss:// to https:// for management API
-    https_endpoint = endpoint.replace("wss://", "https://")
-    return boto3.client(
-        "apigatewaymanagementapi",
-        endpoint_url=https_endpoint,
-        region_name=settings.aws_region,
-    )
-
-
-def send_to_connection(client, connection_id: str, data: dict) -> bool:
-    """Send data to a WebSocket connection.
-
-    Args:
-        client: API Gateway Management API client.
-        connection_id: Target WebSocket connection ID.
-        data: Data to send (will be JSON serialized).
-
-    Returns:
-        True if message was sent, False if connection is gone.
-    """
-    try:
-        client.post_to_connection(
-            ConnectionId=connection_id,
-            Data=json.dumps(data).encode("utf-8"),
-        )
-        return True
-    except ClientError as e:
-        error_code = e.response.get("Error", {}).get("Code", "")
-        if error_code in ("GoneException", "410"):
-            logger.warning(f"Connection {connection_id} is gone")
-            return False
-        logger.error(f"Failed to send to {connection_id}: {e}")
-        raise
 
 
 def process_execution_job(job: dict) -> dict:
@@ -129,7 +83,7 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             ]
         }
 
-    api_client = get_api_gateway_management_client(websocket_endpoint)
+    api_client = get_apigw_management_client(websocket_endpoint)
     batch_failures = []
 
     for record in event.get("Records", []):
@@ -151,7 +105,7 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             result = process_execution_job(job)
 
             # Send result to WebSocket connection
-            sent = send_to_connection(api_client, connection_id, result)
+            sent = post_to_connection(api_client, connection_id, result)
             if not sent:
                 # Connection is gone - no point in retrying
                 logger.warning(f"Skipping job {job_id} - connection gone")

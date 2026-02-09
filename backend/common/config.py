@@ -115,10 +115,6 @@ class Settings(BaseSettings):
     # LLM Embedding settings
     llm_embedding_model: str = ""  # Required: e.g., gemini-embedding-001
 
-    # Legacy: kept for backward compatibility (maps to llm_analysis_model)
-    gemini_model: str = ""  # Deprecated: use llm_analysis_model
-    gemini_embedding_model: str = ""  # Deprecated: use llm_embedding_model
-
     # AWS Configuration
     aws_region: str = ""  # AWS region for all services
 
@@ -164,39 +160,36 @@ class Settings(BaseSettings):
 
     @property
     def resolved_llm_analysis_model(self) -> str:
-        """Get analysis model, falling back to legacy gemini_model.
+        """Get analysis model.
 
         Raises:
-            ValueError: If no model is configured.
+            ValueError: If not configured.
         """
-        model = self.llm_analysis_model or self.gemini_model
-        if not model:
-            raise ValueError("LLM_ANALYSIS_MODEL or GEMINI_MODEL must be set")
-        return model
+        if not self.llm_analysis_model:
+            raise ValueError("LLM_ANALYSIS_MODEL must be set")
+        return self.llm_analysis_model
 
     @property
     def resolved_llm_cypher_model(self) -> str:
-        """Get cypher model, falling back to legacy gemini_model.
+        """Get cypher model.
 
         Raises:
-            ValueError: If no model is configured.
+            ValueError: If not configured.
         """
-        model = self.llm_cypher_model or self.gemini_model
-        if not model:
-            raise ValueError("LLM_CYPHER_MODEL or GEMINI_MODEL must be set")
-        return model
+        if not self.llm_cypher_model:
+            raise ValueError("LLM_CYPHER_MODEL must be set")
+        return self.llm_cypher_model
 
     @property
     def resolved_llm_embedding_model(self) -> str:
-        """Get embedding model, falling back to legacy gemini_embedding_model.
+        """Get embedding model.
 
         Raises:
-            ValueError: If no model is configured.
+            ValueError: If not configured.
         """
-        model = self.llm_embedding_model or self.gemini_embedding_model
-        if not model:
-            raise ValueError("LLM_EMBEDDING_MODEL or GEMINI_EMBEDDING_MODEL must be set")
-        return model
+        if not self.llm_embedding_model:
+            raise ValueError("LLM_EMBEDDING_MODEL must be set")
+        return self.llm_embedding_model
 
     @property
     def resolved_llm_analysis_temperature(self) -> float:

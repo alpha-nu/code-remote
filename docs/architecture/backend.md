@@ -289,9 +289,11 @@ class Settings(BaseSettings):
     database_url: str = ""
     database_secret_arn: str = ""  # AWS Secrets Manager
     
-    # Gemini
+    # LLM Configuration
     gemini_api_key: str = ""
-    gemini_model: str = "gemini-2.5-flash"
+    llm_analysis_model: str = ""      # e.g., gemini-2.5-flash
+    llm_cypher_model: str = ""        # e.g., gemini-2.5-flash
+    llm_embedding_model: str = ""     # e.g., gemini-embedding-001
     
     # AWS
     aws_region: str = "us-east-1"

@@ -261,13 +261,15 @@ GEMINI_API_KEY=your-api-key-here
 
 ---
 
-## Do NOT
+## DO NOT
 
 - Hardcode AWS-specific services in business logic (use abstractions)
 - Store secrets in code or Pulumi config (use AWS Secrets Manager)
 - Allow arbitrary imports in executor (whitelist only: `math`, `cmath`, `json`, `collections`, `itertools`, `functools`, `typing`, `dataclasses`, `random`, `string`, `re`, `datetime`, `decimal`, `fractions`, `statistics`, `operator`, `copy`, `heapq`, `bisect`, `array`, `enum`, `abc`, `time`, `calendar`, `csv`, `textwrap`, `pprint`)
 - Skip input validation on code submissions (max 10KB, UTF-8 only)
 - Run executor containers with network access in production
+- commit code WITHOUT the user explicit approval
+- commit code WITHOUT running tests and linters
 
 ---
 
@@ -278,3 +280,6 @@ GEMINI_API_KEY=your-api-key-here
 - `backend/executor/security.py` - Import restrictions, AST validation
 - `infra/pulumi/__main__.py` - Infrastructure entry point
 - `infra/pulumi/components/` - Pulumi resource components
+
+## IMPORTANT
+- when running python code or scripts, use the .venv at the root folder of the project. Use `uv` to run commands and script against that venv.

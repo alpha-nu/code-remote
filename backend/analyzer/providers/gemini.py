@@ -143,7 +143,7 @@ Respond with JSON only:
             logger.debug(f"Raw Gemini response: {repr(raw_text)}")
 
             # Parse JSON response
-            return self._parse_response(raw_text)
+            return self._parse_response(raw_text, model=model)
 
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse Gemini response as JSON: {e}")
@@ -167,11 +167,12 @@ Respond with JSON only:
                 model=self._model,
             )
 
-    def _parse_response(self, raw_text: str) -> ComplexityResult:
+    def _parse_response(self, raw_text: str, model: str | None = None) -> ComplexityResult:
         """Parse the JSON response from Gemini.
 
         Args:
             raw_text: Raw response text from Gemini
+            model: The model name used for analysis
 
         Returns:
             Parsed ComplexityResult
@@ -196,7 +197,7 @@ Respond with JSON only:
             algorithm_identified=data.get("algorithm_identified"),
             suggestions=data.get("suggestions"),
             raw_response=raw_text,
-            model=self._model,
+            model=model or self._model,
         )
 
 

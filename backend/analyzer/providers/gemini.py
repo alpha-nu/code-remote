@@ -216,13 +216,26 @@ Respond with JSON only:
 
         data = json.loads(text)
 
+        # Normalize suggestions - model may return objects or strings
+        raw_suggestions = data.get("suggestions")
+        suggestions: list[str] | None = None
+        if raw_suggestions:
+            suggestions = []
+            for s in raw_suggestions:
+                if isinstance(s, str):
+                    suggestions.append(s)
+                elif isinstance(s, dict):
+                    # Extract description from structured suggestion
+                    desc = s.get("description") or s.get("text") or str(s)
+                    suggestions.append(desc)
+
         return ComplexityResult(
             time_complexity=data.get("time_complexity", "Unknown"),
             space_complexity=data.get("space_complexity", "Unknown"),
             time_explanation=data.get("time_explanation", ""),
             space_explanation=data.get("space_explanation", ""),
             algorithm_identified=data.get("algorithm_identified"),
-            suggestions=data.get("suggestions"),
+            suggestions=suggestions if suggestions else None,
             raw_response=raw_text,
             model=model or self._model,
         )

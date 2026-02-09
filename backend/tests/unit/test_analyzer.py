@@ -169,3 +169,43 @@ class TestGeminiProviderIntegration:
 
             assert result.time_complexity == "O(n^2)"
             assert result.space_explanation == "no extra space"
+
+    def test_parse_response_normalizes_object_suggestions(self):
+        """Test that object-style suggestions are normalized to strings."""
+        with patch("google.genai.Client"):
+            from analyzer.providers.gemini import GeminiProvider
+
+            provider = GeminiProvider(api_key="test-key")
+
+            # Model sometimes returns suggestions as objects instead of strings
+            json_response = """{
+                "time_complexity": "O(n)",
+                "space_complexity": "O(1)",
+                "time_explanation": "Single pass.",
+                "space_explanation": "Constant space.",
+                "suggestions": [
+                    {"type": "edge_case", "description": "Handle empty input"},
+                    {"type": "clarity", "description": "Add docstring"}
+                ]
+            }"""
+            result = provider._parse_response(json_response)
+
+            assert result.suggestions == ["Handle empty input", "Add docstring"]
+
+    def test_parse_response_handles_string_suggestions(self):
+        """Test that string suggestions are kept as-is."""
+        with patch("google.genai.Client"):
+            from analyzer.providers.gemini import GeminiProvider
+
+            provider = GeminiProvider(api_key="test-key")
+
+            json_response = """{
+                "time_complexity": "O(n)",
+                "space_complexity": "O(1)",
+                "time_explanation": "Single pass.",
+                "space_explanation": "Constant space.",
+                "suggestions": ["Use list comprehension", "Add type hints"]
+            }"""
+            result = provider._parse_response(json_response)
+
+            assert result.suggestions == ["Use list comprehension", "Add type hints"]

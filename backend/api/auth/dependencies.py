@@ -13,20 +13,11 @@ from api.auth.cognito import (
     get_cognito_auth,
 )
 from api.auth.models import User
-from common.config import settings
 
 logger = logging.getLogger(__name__)
 
 # HTTP Bearer token scheme for OpenAPI docs
 bearer_scheme = HTTPBearer(auto_error=False)
-
-# Dev bypass user for local testing
-_DEV_USER = User(
-    id="dev-user-local",
-    email="dev@localhost",
-    username="developer",
-    groups=None,
-)
 
 
 async def get_current_user(
@@ -36,7 +27,6 @@ async def get_current_user(
     """FastAPI dependency to get the current authenticated user.
 
     Extracts and validates the JWT token from the Authorization header.
-    If DEV_AUTH_BYPASS is enabled, returns a mock dev user instead.
 
     Args:
         credentials: Bearer token from Authorization header
@@ -48,11 +38,6 @@ async def get_current_user(
     Raises:
         HTTPException: 401 if token is missing, expired, or invalid
     """
-    # Dev bypass for local testing (NEVER enable in production!)
-    if settings.dev_auth_bypass:
-        logger.warning("⚠️  DEV_AUTH_BYPASS is enabled - authentication is disabled!")
-        return _DEV_USER
-
     if credentials is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

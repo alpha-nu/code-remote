@@ -137,9 +137,6 @@ class Settings(BaseSettings):
     cognito_client_id: str = ""
     cognito_region: str = ""  # Falls back to aws_region if not set
 
-    # Development settings (NEVER enable in production!)
-    dev_auth_bypass: bool = False
-
     @property
     def resolved_database_url(self) -> str:
         """Get database URL, fetching from Secrets Manager if needed."""

@@ -160,6 +160,11 @@ export const useEditorStore = create<EditorState>((set) => ({
             };
           }
         );
+
+        // Invalidate search and filter queries to force a refetch
+        await queryClient.invalidateQueries({ queryKey: ['search'] });
+        await queryClient.invalidateQueries({ queryKey: ['complexity'] });
+
       }
     } catch {
       // ignore analysis errors

@@ -217,9 +217,13 @@ export function SnippetsPanel() {
           <>
             <span className="snippets-icon">{'{}'}</span>
             <span className="snippets-title">Snippets</span>
+            {snippets.length > 0 && <span className="snippet-count-badge">{snippets.length}</span>}
           </>
         ) : (
-          <span className="snippets-icon-large">{'{}'}</span>
+          <>
+            <span className="snippets-icon-large">{'{}'}</span>
+            {snippets.length > 0 && <span className="snippet-count-badge">{snippets.length}</span>}
+          </>
         )}
       </button>
 

@@ -65,6 +65,27 @@
   white-space: nowrap;
 }
 
+.snippet-count-badge {
+  background-color: var(--action-color);
+  color: white;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: bold;
+  line-height: 1;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.snippets-panel.collapsed .snippet-count-badge {
+  position: absolute;
+  top: 8px;
+  right: 15px;
+  transform: translate(65%, -30%);
+}
+
 /* Panel Content */
 .snippets-content {
   display: flex;

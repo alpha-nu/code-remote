@@ -105,12 +105,14 @@ class Settings(BaseSettings):
     llm_analysis_model: str = ""  # Required: e.g., gemini-2.5-flash
     llm_analysis_temperature: float | None = None  # Required: e.g., 0.1
     llm_analysis_max_tokens: int | None = None  # Required: e.g., 2048
+    llm_analysis_thinking_budget: int | None = None  # Optional: -1=dynamic, 0=off
 
     # LLM Cypher settings (Text-to-Cypher generation)
     # All values MUST be set via environment variables (no defaults)
     llm_cypher_model: str = ""  # Required: e.g., gemini-2.5-flash
     llm_cypher_temperature: float | None = None  # Required: e.g., 0.1
     llm_cypher_max_tokens: int | None = None  # Required: e.g., 500
+    llm_cypher_thinking_budget: int | None = None  # Optional: -1=dynamic, 0=off
 
     # LLM Embedding settings
     llm_embedding_model: str = ""  # Required: e.g., gemini-embedding-001
@@ -231,6 +233,24 @@ class Settings(BaseSettings):
         if self.llm_cypher_max_tokens is None:
             raise ValueError("LLM_CYPHER_MAX_TOKENS must be set")
         return self.llm_cypher_max_tokens
+
+    @property
+    def resolved_llm_analysis_thinking_budget(self) -> int | None:
+        """Get analysis thinking budget.
+
+        Returns:
+            Thinking budget (-1=dynamic, 0=off, positive=budget), or None if not set.
+        """
+        return self.llm_analysis_thinking_budget
+
+    @property
+    def resolved_llm_cypher_thinking_budget(self) -> int | None:
+        """Get cypher thinking budget.
+
+        Returns:
+            Thinking budget (-1=dynamic, 0=off, positive=budget), or None if not set.
+        """
+        return self.llm_cypher_thinking_budget
 
     @property
     def resolved_cognito_region(self) -> str:

@@ -101,9 +101,10 @@ Respond with JSON only:
             model = settings.resolved_llm_analysis_model
             temperature = settings.resolved_llm_analysis_temperature
             max_output_tokens = settings.resolved_llm_analysis_max_tokens
+            thinking_budget = settings.resolved_llm_analysis_thinking_budget  # None = omit
 
             logger.info(
-                f"Gemini request: model={model}, temp={temperature}, max_tokens={max_output_tokens}"
+                f"Gemini request: model={model}, temp={temperature}, max_tokens={max_output_tokens}, thinking_budget={thinking_budget}"
             )
 
             # Generate response using the new SDK async API with tracing
@@ -115,13 +116,20 @@ Respond with JSON only:
                 max_output_tokens=max_output_tokens,
                 prompt_chars=len(prompt),
             ) as span:
+                # Build config - only include thinking_config if thinking_budget is set
+                gen_config = types.GenerateContentConfig(
+                    temperature=temperature,
+                    max_output_tokens=max_output_tokens,
+                )
+                if thinking_budget is not None:
+                    gen_config.thinking_config = types.ThinkingConfig(
+                        thinking_budget=thinking_budget
+                    )
+
                 response = await self._client.aio.models.generate_content(
                     model=model,
                     contents=prompt,
-                    config=types.GenerateContentConfig(
-                        temperature=temperature,
-                        max_output_tokens=max_output_tokens,
-                    ),
+                    config=gen_config,
                 )
 
                 raw_text = response.text.strip() if response.text else ""

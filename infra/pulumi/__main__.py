@@ -46,9 +46,13 @@ llm_embedding = llm_config.get("embedding", {})
 llm_analysis_model = llm_analysis.get("model", "gemini-2.5-flash")
 llm_analysis_temperature = str(llm_analysis.get("temperature", 0.1))
 llm_analysis_max_tokens = str(llm_analysis.get("max_tokens", 2048))
+llm_analysis_thinking_budget = str(
+    llm_analysis.get("thinking_budget", -1)
+)  # -1 = dynamic
 llm_cypher_model = llm_cypher.get("model", "gemini-2.5-flash")
 llm_cypher_temperature = str(llm_cypher.get("temperature", 0.1))
 llm_cypher_max_tokens = str(llm_cypher.get("max_tokens", 500))
+llm_cypher_thinking_budget = str(llm_cypher.get("thinking_budget", -1))  # -1 = dynamic
 llm_embedding_model = llm_embedding.get("model", "gemini-embedding-001")
 
 # Neo4j Configuration
@@ -171,10 +175,12 @@ api = ServerlessAPIComponent(
         "LLM_ANALYSIS_MODEL": llm_analysis_model,
         "LLM_ANALYSIS_TEMPERATURE": llm_analysis_temperature,
         "LLM_ANALYSIS_MAX_TOKENS": llm_analysis_max_tokens,
+        "LLM_ANALYSIS_THINKING_BUDGET": llm_analysis_thinking_budget,
         # LLM Cypher settings
         "LLM_CYPHER_MODEL": llm_cypher_model,
         "LLM_CYPHER_TEMPERATURE": llm_cypher_temperature,
         "LLM_CYPHER_MAX_TOKENS": llm_cypher_max_tokens,
+        "LLM_CYPHER_THINKING_BUDGET": llm_cypher_thinking_budget,
         # LLM Embedding settings
         "LLM_EMBEDDING_MODEL": llm_embedding_model,
         "DEBUG": "false" if environment == "prod" else "true",

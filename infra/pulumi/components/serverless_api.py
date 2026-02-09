@@ -177,44 +177,11 @@ class ServerlessAPIComponent(pulumi.ComponentResource):
             opts=pulumi.ResourceOptions(parent=self),
         )
 
-        # Policy to allow Lambda to read the specific Gemini API Key secret
-        if secrets_arn:
-            aws.iam.RolePolicyAttachment(
-                f"{name}-gemini-secret-read-policy",
-                role=self.role.name,
-                policy_arn=aws.iam.Policy(
-                    f"{name}-gemini-secret-policy",
-                    policy=pulumi.Output.json_dumps(
-                        {
-                            "Version": "2012-10-17",
-                            "Statement": [
-                                {
-                                    "Effect": "Allow",
-                                    "Action": "secretsmanager:GetSecretValue",
-                                    "Resource": secrets_arn,
-                                }
-                            ],
-                        }
-                    ),
-                    opts=pulumi.ResourceOptions(parent=self),
-                ).arn,
-                opts=pulumi.ResourceOptions(parent=self),
-            )
-
-        # Retrieve Gemini API Key secret value
-        gemini_api_key = pulumi.Output.secret(secrets_arn).apply(
-            lambda arn: aws.secretsmanager.get_secret_version(
-                secret_id=arn
-            ).secret_string
-            if arn
-            else ""
-        )
-
         # Merge environment variables
         lambda_env_vars = {
             **base_env_vars,
             "ENVIRONMENT": environment,
-            "GEMINI_API_KEY": gemini_api_key,
+            "GEMINI_API_KEY_SECRET_ARN": secrets_arn,
         }
 
         # Add queue URL if provided

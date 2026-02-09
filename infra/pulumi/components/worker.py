@@ -76,65 +76,63 @@ class WorkerComponent(pulumi.ComponentResource):
             opts=pulumi.ResourceOptions(parent=self),
         )
 
-        # Policy to allow Lambda to read from SQS queue
-        aws.iam.RolePolicyAttachment(
-            f"{name}-sqs-read-policy",
-            role=self.role.name,
-            policy_arn=aws.iam.Policy(
-                f"{name}-sqs-policy",
-                policy=queue_arn.apply(
-                    lambda arn: json.dumps(
-                        {
-                            "Version": "2012-10-17",
-                            "Statement": [
-                                {
-                                    "Effect": "Allow",
-                                    "Action": [
-                                        "sqs:ReceiveMessage",
-                                        "sqs:DeleteMessage",
-                                        "sqs:GetQueueAttributes",
-                                    ],
-                                    "Resource": arn,
-                                }
-                            ],
-                        }
-                    )
-                ),
-                opts=pulumi.ResourceOptions(parent=self),
-            ).arn,
+        # SQS access policy
+        sqs_policy = aws.iam.Policy(
+            f"{name}-sqs-policy",
+            policy=pulumi.Output.all(queue_arn).apply(
+                lambda args: json.dumps(
+                    {
+                        "Version": "2012-10-17",
+                        "Statement": [
+                            {
+                                "Effect": "Allow",
+                                "Action": [
+                                    "sqs:ReceiveMessage",
+                                    "sqs:DeleteMessage",
+                                    "sqs:GetQueueAttributes",
+                                ],
+                                "Resource": args[0],
+                            }
+                        ],
+                    }
+                )
+            ),
+            tags=self.tags,
             opts=pulumi.ResourceOptions(parent=self),
         )
 
-        # Policy to allow Lambda to post to WebSocket connections
         aws.iam.RolePolicyAttachment(
-            f"{name}-ws-manage-policy",
+            f"{name}-sqs-attach",
             role=self.role.name,
-            policy_arn=websocket_api_id.apply(
-                lambda api_id: aws.iam.Policy(
-                    f"{name}-ws-manage-policy",
-                    policy=pulumi.Output.json_dumps(
-                        {
-                            "Version": "2012-10-17",
-                            "Statement": [
-                                {
-                                    "Effect": "Allow",
-                                    "Action": "execute-api:ManageConnections",
-                                    "Resource": pulumi.Output.concat(
-                                        "arn:aws:execute-api:",
-                                        aws.get_region().name,
-                                        ":",
-                                        aws.get_caller_identity().account_id,
-                                        ":",
-                                        api_id,
-                                        "/*",
-                                    ),
-                                }
-                            ],
-                        }
-                    ),
-                    opts=pulumi.ResourceOptions(parent=self),
-                ).arn,
+            policy_arn=sqs_policy.arn,
+            opts=pulumi.ResourceOptions(parent=self),
+        )
+
+        # WebSocket Management API access policy
+        ws_policy = aws.iam.Policy(
+            f"{name}-ws-policy",
+            policy=pulumi.Output.all(websocket_api_id).apply(
+                lambda args: json.dumps(
+                    {
+                        "Version": "2012-10-17",
+                        "Statement": [
+                            {
+                                "Effect": "Allow",
+                                "Action": ["execute-api:ManageConnections"],
+                                "Resource": f"arn:aws:execute-api:*:*:{args[0]}/*",
+                            }
+                        ],
+                    }
+                )
             ),
+            tags=self.tags,
+            opts=pulumi.ResourceOptions(parent=self),
+        )
+
+        aws.iam.RolePolicyAttachment(
+            f"{name}-ws-attach",
+            role=self.role.name,
+            policy_arn=ws_policy.arn,
             opts=pulumi.ResourceOptions(parent=self),
         )
 
@@ -166,29 +164,6 @@ class WorkerComponent(pulumi.ComponentResource):
             opts=pulumi.ResourceOptions(parent=self),
         )
 
-        # Policy to allow Lambda to read the specific Gemini API Key secret
-        aws.iam.RolePolicyAttachment(
-            f"{name}-gemini-secret-read-policy",
-            role=self.role.name,
-            policy_arn=aws.iam.Policy(
-                f"{name}-gemini-secret-policy",
-                policy=pulumi.Output.json_dumps(
-                    {
-                        "Version": "2012-10-17",
-                        "Statement": [
-                            {
-                                "Effect": "Allow",
-                                "Action": "secretsmanager:GetSecretValue",
-                                "Resource": secrets_arn,
-                            }
-                        ],
-                    }
-                ),
-                opts=pulumi.ResourceOptions(parent=self),
-            ).arn,
-            opts=pulumi.ResourceOptions(parent=self),
-        )
-
         # CloudWatch Logs
         self.log_group = aws.cloudwatch.LogGroup(
             f"{name}-logs",
@@ -196,15 +171,6 @@ class WorkerComponent(pulumi.ComponentResource):
             retention_in_days=14,
             tags=self.tags,
             opts=pulumi.ResourceOptions(parent=self),
-        )
-
-        # Retrieve Gemini API Key secret value
-        gemini_api_key = pulumi.Output.secret(secrets_arn).apply(
-            lambda arn: aws.secretsmanager.get_secret_version(
-                secret_id=arn
-            ).secret_string
-            if arn
-            else ""
         )
 
         # Lambda Function (Container image based, same image as API)
@@ -226,7 +192,6 @@ class WorkerComponent(pulumi.ComponentResource):
                 variables={
                     "ENVIRONMENT": environment,
                     "WEBSOCKET_ENDPOINT": websocket_endpoint,
-                    "GEMINI_API_KEY": gemini_api_key,
                 }
             ),
             tags=self.tags,

@@ -75,6 +75,8 @@ END
 5. Use graph traversal for structured filters (complexity, language)
 6. Combine both when query has both concepts AND structure
 7. ALWAYS include LIMIT $limit at the end
+8. ALWAYS use aliases in RETURN: snippet_id, title, description, time_complexity, space_complexity, language, score
+   Example: RETURN s.id AS snippet_id, s.title AS title, s.description AS description, c.notation AS time_complexity
 
 ## Examples
 
@@ -83,7 +85,7 @@ User: "show me my O(n^2) algorithms"
 MATCH (s:Snippet)-[:HAS_TIME_COMPLEXITY]->(c:Complexity)
 MATCH (s)-[:OWNED_BY]->(u:User {{id: $user_id}})
 WHERE c.notation = 'O(n^2)'
-RETURN s.id, s.title, s.description, c.notation AS time_complexity
+RETURN s.id AS snippet_id, s.title AS title, s.description AS description, c.notation AS time_complexity
 LIMIT $limit
 ```
 
@@ -92,7 +94,7 @@ User: "find sorting algorithms"
 CALL db.index.vector.queryNodes('snippet_embedding', $limit, $query_embedding)
 YIELD node AS s, score
 MATCH (s)-[:OWNED_BY]->(u:User {{id: $user_id}})
-RETURN s.id, s.title, s.description, score
+RETURN s.id AS snippet_id, s.title AS title, s.description AS description, score
 ORDER BY score DESC
 ```
 
@@ -102,7 +104,7 @@ CALL db.index.vector.queryNodes('snippet_embedding', 30, $query_embedding)
 YIELD node AS s, score
 MATCH (s)-[:HAS_TIME_COMPLEXITY]->(c:Complexity)
 MATCH (s)-[:OWNED_BY]->(u:User {{id: $user_id}})
-RETURN s.id, s.title, c.notation AS time_complexity, score
+RETURN s.id AS snippet_id, s.title AS title, c.notation AS time_complexity, score
 ORDER BY score DESC
 LIMIT $limit
 ```
@@ -115,7 +117,7 @@ MATCH (s)-[:WRITTEN_IN]->(l:Language {{name: 'python'}})
 MATCH (s)-[:HAS_TIME_COMPLEXITY]->(c:Complexity)
 MATCH (s)-[:OWNED_BY]->(u:User {{id: $user_id}})
 WHERE c.notation IN ['O(1)', 'O(log n)', 'O(n)']
-RETURN s.id, s.title, c.notation AS time_complexity, score
+RETURN s.id AS snippet_id, s.title AS title, c.notation AS time_complexity, score
 ORDER BY score DESC
 LIMIT $limit
 ```
@@ -132,7 +134,7 @@ User: "show me my worst performing code"
 ```cypher
 MATCH (s:Snippet)-[:HAS_TIME_COMPLEXITY]->(c:Complexity)
 MATCH (s)-[:OWNED_BY]->(u:User {{id: $user_id}})
-RETURN s.id, s.title, s.description, c.notation AS time_complexity
+RETURN s.id AS snippet_id, s.title AS title, s.description AS description, c.notation AS time_complexity
 ORDER BY CASE c.notation
   WHEN 'O(1)' THEN 1
   WHEN 'O(log n)' THEN 2
@@ -151,7 +153,7 @@ User: "my fastest algorithms"
 ```cypher
 MATCH (s:Snippet)-[:HAS_TIME_COMPLEXITY]->(c:Complexity)
 MATCH (s)-[:OWNED_BY]->(u:User {{id: $user_id}})
-RETURN s.id, s.title, s.description, c.notation AS time_complexity
+RETURN s.id AS snippet_id, s.title AS title, s.description AS description, c.notation AS time_complexity
 ORDER BY CASE c.notation
   WHEN 'O(1)' THEN 1
   WHEN 'O(log n)' THEN 2

@@ -1,5 +1,7 @@
 """Complexity analyzer service."""
 
+from collections.abc import AsyncGenerator
+
 from analyzer.llm_provider import ComplexityResult, LLMProvider
 from analyzer.providers.gemini import get_gemini_provider
 
@@ -15,8 +17,19 @@ class ComplexityAnalyzer:
         """
         self.provider = provider or get_gemini_provider()
 
+    def _empty_code_result(self) -> ComplexityResult:
+        """Return an error result for empty/blank code."""
+        return ComplexityResult(
+            time_complexity="N/A",
+            space_complexity="N/A",
+            narrative="No code provided.",
+            error="Empty code",
+        )
+
     async def analyze(self, code: str) -> ComplexityResult:
-        """Analyze the complexity of Python code.
+        """Analyze the complexity of Python code (non-streaming).
+
+        Used as the sync HTTP fallback.
 
         Args:
             code: Python code to analyze
@@ -24,17 +37,26 @@ class ComplexityAnalyzer:
         Returns:
             ComplexityResult with time and space complexity analysis
         """
-        # Basic validation
         if not code or not code.strip():
-            return ComplexityResult(
-                time_complexity="N/A",
-                space_complexity="N/A",
-                time_explanation="No code provided",
-                space_explanation="No code provided",
-                error="Empty code",
-            )
+            return self._empty_code_result()
 
         return await self.provider.analyze_complexity(code)
+
+    async def analyze_stream(self, code: str) -> AsyncGenerator[str | ComplexityResult, None]:
+        """Stream complexity analysis chunks then a final result.
+
+        Used for WebSocket streaming.
+
+        Yields:
+            str: Raw text chunks from the LLM.
+            ComplexityResult: Final parsed result (last item).
+        """
+        if not code or not code.strip():
+            yield self._empty_code_result()
+            return
+
+        async for item in self.provider.analyze_complexity_stream(code):
+            yield item
 
     def is_available(self) -> bool:
         """Check if complexity analysis is available.

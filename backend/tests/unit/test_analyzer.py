@@ -15,13 +15,20 @@ class MockProvider:
         self.result = result or ComplexityResult(
             time_complexity="O(n)",
             space_complexity="O(1)",
-            time_explanation="Linear iteration",
-            space_explanation="Constant space",
+            narrative="### Algorithm\nLinear scan.\n\n### Time Complexity: O(n)\nSingle pass.\n\n### Space Complexity: O(1)\nConstant space.",
         )
         self._configured = configured
 
     async def analyze_complexity(self, code: str) -> ComplexityResult:
         return self.result
+
+    async def analyze_complexity_stream(self, code: str):
+        # Yield narrative in chunks, then final result
+        narrative = self.result.narrative
+        mid = len(narrative) // 2
+        yield narrative[:mid]
+        yield narrative[mid:]
+        yield self.result
 
     def is_configured(self) -> bool:
         return self._configured
@@ -40,7 +47,7 @@ class TestComplexityAnalyzer:
 
         assert result.time_complexity == "O(n)"
         assert result.space_complexity == "O(1)"
-        assert result.time_explanation == "Linear iteration"
+        assert "Linear scan" in result.narrative
 
     @pytest.mark.asyncio
     async def test_analyze_empty_code_returns_error(self):
@@ -63,6 +70,39 @@ class TestComplexityAnalyzer:
 
         assert result.error == "Empty code"
 
+    @pytest.mark.asyncio
+    async def test_analyze_stream_yields_chunks_then_result(self):
+        """Test that analyze_stream yields str chunks then ComplexityResult."""
+        provider = MockProvider()
+        analyzer = ComplexityAnalyzer(provider=provider)
+
+        chunks = []
+        final_result = None
+        async for item in analyzer.analyze_stream("for i in range(n): print(i)"):
+            if isinstance(item, str):
+                chunks.append(item)
+            elif isinstance(item, ComplexityResult):
+                final_result = item
+
+        assert len(chunks) == 2
+        assert "".join(chunks) == provider.result.narrative
+        assert final_result is not None
+        assert final_result.time_complexity == "O(n)"
+
+    @pytest.mark.asyncio
+    async def test_analyze_stream_empty_code(self):
+        """Test that analyze_stream yields error result for empty code."""
+        provider = MockProvider()
+        analyzer = ComplexityAnalyzer(provider=provider)
+
+        items = []
+        async for item in analyzer.analyze_stream(""):
+            items.append(item)
+
+        assert len(items) == 1
+        assert isinstance(items[0], ComplexityResult)
+        assert items[0].error == "Empty code"
+
     def test_is_available_returns_provider_status(self):
         """Test that is_available reflects provider configuration."""
         configured_provider = MockProvider(configured=True)
@@ -80,31 +120,26 @@ class TestComplexityResult:
         result = ComplexityResult(
             time_complexity="O(1)",
             space_complexity="O(1)",
-            time_explanation="Constant",
-            space_explanation="Constant",
+            narrative="Constant time and space.",
         )
 
-        assert result.algorithm_identified is None
-        assert result.suggestions is None
         assert result.raw_response is None
         assert result.error is None
+        assert result.model is None
 
     def test_all_fields(self):
         """Test all fields can be set."""
         result = ComplexityResult(
             time_complexity="O(n log n)",
             space_complexity="O(n)",
-            time_explanation="Merge sort",
-            space_explanation="Auxiliary array",
-            algorithm_identified="Merge Sort",
-            suggestions=["Consider in-place sort"],
-            raw_response='{"time": "O(n log n)"}',
+            narrative="### Algorithm\nMerge Sort.",
+            raw_response="raw text here",
             error=None,
+            model="gemini-2.0-flash",
         )
 
         assert result.time_complexity == "O(n log n)"
-        assert result.algorithm_identified == "Merge Sort"
-        assert len(result.suggestions) == 1
+        assert "Merge Sort" in result.narrative
 
 
 class TestGeminiProviderIntegration:
@@ -116,16 +151,32 @@ class TestGeminiProviderIntegration:
         with patch("analyzer.providers.gemini.settings") as mock_settings:
             mock_settings.resolved_gemini_api_key = ""
 
-            # Import after patching
             from analyzer.providers.gemini import GeminiProvider
 
             provider = GeminiProvider(api_key="")
 
             result = await provider.analyze_complexity("print('hello')")
 
-            # The error message may vary based on SDK behavior
             assert result.time_complexity == "Unknown"
             assert result.error is not None
+
+    @pytest.mark.asyncio
+    async def test_gemini_provider_stream_not_configured(self):
+        """Test that unconfigured provider stream yields error result."""
+        with patch("analyzer.providers.gemini.settings") as mock_settings:
+            mock_settings.resolved_gemini_api_key = ""
+
+            from analyzer.providers.gemini import GeminiProvider
+
+            provider = GeminiProvider(api_key="")
+
+            items = []
+            async for item in provider.analyze_complexity_stream("print('hello')"):
+                items.append(item)
+
+            assert len(items) == 1
+            assert isinstance(items[0], ComplexityResult)
+            assert items[0].error is not None
 
     def test_gemini_provider_is_configured(self):
         """Test is_configured with API key."""
@@ -137,75 +188,125 @@ class TestGeminiProviderIntegration:
 
             from analyzer.providers.gemini import GeminiProvider
 
-            # Create fresh instances with explicit API keys
             provider_with_key = GeminiProvider(api_key="test-key")
             provider_without_key = GeminiProvider(api_key="")
 
-            # Check is_configured based on the api_key passed
             assert provider_with_key.is_configured() is True
             assert provider_without_key.is_configured() is False
 
-    def test_parse_response_strips_markdown(self):
-        """Test that markdown code blocks are stripped from response."""
+    def test_parse_response_narrative_with_json_block(self):
+        """Test that narrative + JSON block is parsed correctly."""
         with patch("google.genai.Client"):
             from analyzer.providers.gemini import GeminiProvider
 
             provider = GeminiProvider(api_key="test-key")
 
-            json_response = '```json\n{"time_complexity": "O(1)", "space_complexity": "O(1)", "time_explanation": "test", "space_explanation": "test"}\n```'
-            result = provider._parse_response(json_response)
+            raw = (
+                "### Algorithm\nBubble sort.\n\n"
+                "### Time Complexity: O(n²)\nNested loops.\n\n"
+                "### Space Complexity: O(1)\nIn-place.\n\n"
+                '```json\n{"time_complexity": "O(n²)", "space_complexity": "O(1)"}\n```'
+            )
+            result = provider._parse_response(raw)
+
+            assert result.time_complexity == "O(n²)"
+            assert result.space_complexity == "O(1)"
+            assert "Bubble sort" in result.narrative
+            assert "```json" not in result.narrative
+
+    def test_parse_response_json_block_no_trailing_newline(self):
+        """Test JSON block without newline before closing backticks."""
+        with patch("google.genai.Client"):
+            from analyzer.providers.gemini import GeminiProvider
+
+            provider = GeminiProvider(api_key="test-key")
+
+            raw = (
+                "### Algorithm\nLinear scan.\n\n"
+                '```json\n{"time_complexity": "O(n)", "space_complexity": "O(1)"}```'
+            )
+            result = provider._parse_response(raw)
+
+            assert result.time_complexity == "O(n)"
+            assert result.space_complexity == "O(1)"
+            assert result.error is None
+
+    def test_parse_response_json_block_uppercase_label(self):
+        """Test JSON block with uppercase ```JSON label."""
+        with patch("google.genai.Client"):
+            from analyzer.providers.gemini import GeminiProvider
+
+            provider = GeminiProvider(api_key="test-key")
+
+            raw = (
+                "### Algorithm\nMerge sort.\n\n"
+                '```JSON\n{"time_complexity": "O(n log n)", "space_complexity": "O(n)"}\n```'
+            )
+            result = provider._parse_response(raw)
+
+            assert result.time_complexity == "O(n log n)"
+            assert result.space_complexity == "O(n)"
+            assert result.error is None
+
+    def test_parse_response_json_block_compact(self):
+        """Test JSON block with no newlines inside fences."""
+        with patch("google.genai.Client"):
+            from analyzer.providers.gemini import GeminiProvider
+
+            provider = GeminiProvider(api_key="test-key")
+
+            raw = (
+                "### Algorithm\nHash lookup.\n\n"
+                '```json{"time_complexity": "O(1)", "space_complexity": "O(n)"}```'
+            )
+            result = provider._parse_response(raw)
 
             assert result.time_complexity == "O(1)"
+            assert result.space_complexity == "O(n)"
+            assert result.error is None
 
-    def test_parse_response_handles_plain_json(self):
-        """Test that plain JSON is parsed correctly."""
+    def test_parse_response_heading_fallback(self):
+        """Test extraction from headings when JSON block is absent."""
         with patch("google.genai.Client"):
             from analyzer.providers.gemini import GeminiProvider
 
             provider = GeminiProvider(api_key="test-key")
 
-            json_response = '{"time_complexity": "O(n^2)", "space_complexity": "O(1)", "time_explanation": "nested loops", "space_explanation": "no extra space"}'
-            result = provider._parse_response(json_response)
+            raw = (
+                "### Algorithm\nBinary search.\n\n"
+                "### Time Complexity: O(log n)\nHalves the search space.\n\n"
+                "### Space Complexity: O(1)\nIterative approach."
+            )
+            result = provider._parse_response(raw)
 
-            assert result.time_complexity == "O(n^2)"
-            assert result.space_explanation == "no extra space"
+            assert result.time_complexity == "O(log n)"
+            assert result.space_complexity == "O(1)"
+            assert result.error is None
+            assert "Binary search" in result.narrative
 
-    def test_parse_response_normalizes_object_suggestions(self):
-        """Test that object-style suggestions are normalized to strings."""
+    def test_parse_response_no_json_block_no_headings(self):
+        """Test response with neither JSON block nor complexity headings."""
         with patch("google.genai.Client"):
             from analyzer.providers.gemini import GeminiProvider
 
             provider = GeminiProvider(api_key="test-key")
 
-            # Model sometimes returns suggestions as objects instead of strings
-            json_response = """{
-                "time_complexity": "O(n)",
-                "space_complexity": "O(1)",
-                "time_explanation": "Single pass.",
-                "space_explanation": "Constant space.",
-                "suggestions": [
-                    {"type": "edge_case", "description": "Handle empty input"},
-                    {"type": "clarity", "description": "Add docstring"}
-                ]
-            }"""
-            result = provider._parse_response(json_response)
+            raw = "### Algorithm\nSomething without complexity info."
+            result = provider._parse_response(raw)
 
-            assert result.suggestions == ["Handle empty input", "Add docstring"]
+            assert result.time_complexity == "Unknown"
+            assert result.error is not None
+            assert "Something without complexity info" in result.narrative
 
-    def test_parse_response_handles_string_suggestions(self):
-        """Test that string suggestions are kept as-is."""
+    def test_parse_response_invalid_json(self):
+        """Test response with invalid JSON in the block."""
         with patch("google.genai.Client"):
             from analyzer.providers.gemini import GeminiProvider
 
             provider = GeminiProvider(api_key="test-key")
 
-            json_response = """{
-                "time_complexity": "O(n)",
-                "space_complexity": "O(1)",
-                "time_explanation": "Single pass.",
-                "space_explanation": "Constant space.",
-                "suggestions": ["Use list comprehension", "Add type hints"]
-            }"""
-            result = provider._parse_response(json_response)
+            raw = "### Algorithm\nTest.\n\n```json\n{invalid json}\n```"
+            result = provider._parse_response(raw)
 
-            assert result.suggestions == ["Use list comprehension", "Add type hints"]
+            assert result.time_complexity == "Unknown"
+            assert "JSON parse error" in result.error

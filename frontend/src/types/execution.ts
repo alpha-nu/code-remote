@@ -45,14 +45,17 @@ export interface AnalyzeRequest {
   snippet_id?: string;
 }
 
+export interface AsyncAnalyzeRequest {
+  code: string;
+  connection_id: string;
+  snippet_id?: string;
+}
+
 export interface AnalyzeResponse {
   success: boolean;
   time_complexity: string;
   space_complexity: string;
-  time_explanation: string;
-  space_explanation: string;
-  algorithm_identified: string | null;
-  suggestions: string[] | null;
+  narrative: string;
   error: string | null;
   available: boolean;
   model: string | null;
@@ -61,4 +64,31 @@ export interface AnalyzeResponse {
 export interface AnalysisStatus {
   available: boolean;
   provider: string | null;
+}
+
+/**
+ * WebSocket message types for analysis streaming.
+ */
+
+export interface AnalysisStreamStartMessage {
+  type: 'analysis_stream_start';
+  job_id: string;
+}
+
+export interface AnalysisStreamChunkMessage {
+  type: 'analysis_stream_chunk';
+  job_id: string;
+  chunk: string;
+}
+
+export interface AnalysisStreamCompleteMessage {
+  type: 'analysis_stream_complete';
+  job_id: string;
+  result: AnalyzeResponse;
+}
+
+export interface AnalysisStreamErrorMessage {
+  type: 'analysis_stream_error';
+  job_id: string;
+  error: string;
 }

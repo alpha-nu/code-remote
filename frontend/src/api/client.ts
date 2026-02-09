@@ -7,6 +7,7 @@ import type {
   AnalyzeRequest,
   AnalyzeResponse,
   AnalysisStatus,
+  AsyncAnalyzeRequest,
   AsyncExecutionRequest,
   ExecutionRequest,
   ExecutionResponse,
@@ -125,10 +126,19 @@ export async function executeCodeAsync(request: AsyncExecutionRequest): Promise<
 }
 
 /**
- * Analyze code complexity using LLM.
+ * Analyze code complexity using LLM (sync HTTP fallback).
  */
 export async function analyzeCode(request: AnalyzeRequest): Promise<AnalyzeResponse> {
   const response = await apiClient.post<AnalyzeResponse>('/analyze', request);
+  return response.data;
+}
+
+/**
+ * Submit code for async streaming analysis via WebSocket.
+ * Results will be streamed via WebSocket to the connection_id.
+ */
+export async function analyzeCodeAsync(request: AsyncAnalyzeRequest): Promise<JobSubmittedResponse> {
+  const response = await apiClient.post<JobSubmittedResponse>('/analyze/async', request);
   return response.data;
 }
 

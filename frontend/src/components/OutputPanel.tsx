@@ -4,22 +4,32 @@
 
 import { useEditorStore } from '../store/editorStore';
 import { ComplexityPanel } from './ComplexityPanel';
+import type { ConnectionState } from '../hooks';
 import spinner from '../assets/spinner.svg';
 import { useRef, useState, useEffect } from 'react';
 
-export function OutputPanel() {
+interface OutputPanelProps {
+  connectionState?: ConnectionState;
+  connectionId?: string | null;
+}
+
+export function OutputPanel({ connectionState = 'disconnected', connectionId = null }: OutputPanelProps) {
   const {
     result,
     isExecuting,
     apiError,
     autoAnalyze,
     isAnalyzing,
+    analysisStreamText,
     analyze,
     setAutoAnalyze,
     timeoutSeconds,
     setTimeoutSeconds,
     hasRun,
   } = useEditorStore();
+
+  // Analysis is "busy" while the LLM is streaming OR the typewriter is still rendering
+  const analysisBusy = isAnalyzing || !!analysisStreamText;
 
   // Splitter state: percentage of available space for output section (default 50%)
   const [splitPercent, setSplitPercent] = useState(50);
@@ -130,8 +140,8 @@ export function OutputPanel() {
         <div className="output-tools-right">
           {/* Show explicit analyze button only after code has been executed once and when autoAnalyze is off */}
           {!autoAnalyze && hasRun && (
-            <button className="analyze-button" onClick={() => analyze()} disabled={isAnalyzing}>
-              {isAnalyzing ? (
+            <button className="analyze-button" onClick={() => analyze(connectionId)} disabled={analysisBusy}>
+              {analysisBusy ? (
                 'Analyzing...'
               ) : (
                 <>
@@ -260,7 +270,7 @@ export function OutputPanel() {
             className="complexity-panel-wrapper"
             style={{ height: `${100 - splitPercent}%` }}
           >
-            <ComplexityPanel />
+            <ComplexityPanel connectionState={connectionState} />
           </div>
         )}
       </div>

@@ -76,16 +76,18 @@ END
 6. Combine both when query has both concepts AND structure
 7. ALWAYS include LIMIT $limit at the end
 8. ALWAYS use aliases in RETURN: snippet_id, title, description, time_complexity, space_complexity, language, score
-   Example: RETURN s.id AS snippet_id, s.title AS title, s.description AS description, c.notation AS time_complexity
+9. ALWAYS return both `time_complexity` and `space_complexity`. Match on both `HAS_TIME_COMPLEXITY` and `HAS_SPACE_COMPLEXITY` relationships and return `tc.notation AS time_complexity` and `sc.notation AS space_complexity`.
+   Example: RETURN s.id AS snippet_id, s.title AS title, s.description AS description, tc.notation AS time_complexity, sc.notation AS space_complexity, l.name AS language, score
 
 ## Examples
 
 User: "show me my O(n^2) algorithms"
 ```cypher
-MATCH (s:Snippet)-[:HAS_TIME_COMPLEXITY]->(c:Complexity)
+MATCH (s:Snippet)-[:HAS_TIME_COMPLEXITY]->(tc:Complexity {{notation: 'O(n^2)'}})
+MATCH (s)-[:HAS_SPACE_COMPLEXITY]->(sc:Complexity)
 MATCH (s)-[:OWNED_BY]->(u:User {{id: $user_id}})
-WHERE c.notation = 'O(n^2)'
-RETURN s.id AS snippet_id, s.title AS title, s.description AS description, c.notation AS time_complexity
+OPTIONAL MATCH (s)-[:WRITTEN_IN]->(l:Language)
+RETURN s.id AS snippet_id, s.title AS title, s.description AS description, tc.notation AS time_complexity, sc.notation AS space_complexity, l.name AS language
 LIMIT $limit
 ```
 
@@ -94,7 +96,10 @@ User: "find sorting algorithms"
 CALL db.index.vector.queryNodes('snippet_embedding', $limit, $query_embedding)
 YIELD node AS s, score
 MATCH (s)-[:OWNED_BY]->(u:User {{id: $user_id}})
-RETURN s.id AS snippet_id, s.title AS title, s.description AS description, score
+MATCH (s)-[:HAS_TIME_COMPLEXITY]->(tc:Complexity)
+MATCH (s)-[:HAS_SPACE_COMPLEXITY]->(sc:Complexity)
+OPTIONAL MATCH (s)-[:WRITTEN_IN]->(l:Language)
+RETURN s.id AS snippet_id, s.title AS title, s.description AS description, tc.notation AS time_complexity, sc.notation AS space_complexity, l.name AS language, score
 ORDER BY score DESC
 ```
 
@@ -102,9 +107,11 @@ User: "inefficient sorting algorithms"
 ```cypher
 CALL db.index.vector.queryNodes('snippet_embedding', 30, $query_embedding)
 YIELD node AS s, score
-MATCH (s)-[:HAS_TIME_COMPLEXITY]->(c:Complexity)
+MATCH (s)-[:HAS_TIME_COMPLEXITY]->(tc:Complexity)
+MATCH (s)-[:HAS_SPACE_COMPLEXITY]->(sc:Complexity)
 MATCH (s)-[:OWNED_BY]->(u:User {{id: $user_id}})
-RETURN s.id AS snippet_id, s.title AS title, c.notation AS time_complexity, score
+OPTIONAL MATCH (s)-[:WRITTEN_IN]->(l:Language)
+RETURN s.id AS snippet_id, s.title AS title, tc.notation AS time_complexity, sc.notation AS space_complexity, l.name AS language, score
 ORDER BY score DESC
 LIMIT $limit
 ```
@@ -114,10 +121,11 @@ User: "efficient Python code for searching"
 CALL db.index.vector.queryNodes('snippet_embedding', 30, $query_embedding)
 YIELD node AS s, score
 MATCH (s)-[:WRITTEN_IN]->(l:Language {{name: 'python'}})
-MATCH (s)-[:HAS_TIME_COMPLEXITY]->(c:Complexity)
+MATCH (s)-[:HAS_TIME_COMPLEXITY]->(tc:Complexity)
+MATCH (s)-[:HAS_SPACE_COMPLEXITY]->(sc:Complexity)
 MATCH (s)-[:OWNED_BY]->(u:User {{id: $user_id}})
-WHERE c.notation IN ['O(1)', 'O(log n)', 'O(n)']
-RETURN s.id AS snippet_id, s.title AS title, c.notation AS time_complexity, score
+WHERE tc.notation IN ['O(1)', 'O(log n)', 'O(n)']
+RETURN s.id AS snippet_id, s.title AS title, tc.notation AS time_complexity, sc.notation AS space_complexity, l.name AS language, score
 ORDER BY score DESC
 LIMIT $limit
 ```
@@ -132,10 +140,12 @@ ORDER BY count DESC
 
 User: "show me my worst performing code"
 ```cypher
-MATCH (s:Snippet)-[:HAS_TIME_COMPLEXITY]->(c:Complexity)
+MATCH (s:Snippet)-[:HAS_TIME_COMPLEXITY]->(tc:Complexity)
+MATCH (s)-[:HAS_SPACE_COMPLEXITY]->(sc:Complexity)
 MATCH (s)-[:OWNED_BY]->(u:User {{id: $user_id}})
-RETURN s.id AS snippet_id, s.title AS title, s.description AS description, c.notation AS time_complexity
-ORDER BY CASE c.notation
+OPTIONAL MATCH (s)-[:WRITTEN_IN]->(l:Language)
+RETURN s.id AS snippet_id, s.title AS title, s.description AS description, tc.notation AS time_complexity, sc.notation AS space_complexity, l.name AS language
+ORDER BY CASE tc.notation
   WHEN 'O(1)' THEN 1
   WHEN 'O(log n)' THEN 2
   WHEN 'O(n)' THEN 3
@@ -151,10 +161,12 @@ LIMIT $limit
 
 User: "my fastest algorithms"
 ```cypher
-MATCH (s:Snippet)-[:HAS_TIME_COMPLEXITY]->(c:Complexity)
+MATCH (s:Snippet)-[:HAS_TIME_COMPLEXITY]->(tc:Complexity)
+MATCH (s)-[:HAS_SPACE_COMPLEXITY]->(sc:Complexity)
 MATCH (s)-[:OWNED_BY]->(u:User {{id: $user_id}})
-RETURN s.id AS snippet_id, s.title AS title, s.description AS description, c.notation AS time_complexity
-ORDER BY CASE c.notation
+OPTIONAL MATCH (s)-[:WRITTEN_IN]->(l:Language)
+RETURN s.id AS snippet_id, s.title AS title, s.description AS description, tc.notation AS time_complexity, sc.notation AS space_complexity, l.name AS language
+ORDER BY CASE tc.notation
   WHEN 'O(1)' THEN 1
   WHEN 'O(log n)' THEN 2
   WHEN 'O(n)' THEN 3

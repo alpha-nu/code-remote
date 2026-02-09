@@ -2,6 +2,8 @@
 
 import json
 import logging
+import re
+from collections.abc import AsyncGenerator
 from pathlib import Path
 
 from google import genai
@@ -16,6 +18,14 @@ logger = logging.getLogger(__name__)
 # Load prompt template
 PROMPT_PATH = Path(__file__).parent / "prompts" / "complexity.txt"
 
+# Pattern to find the trailing ```json {...} ``` block
+# Case-insensitive, flexible whitespace (LLMs sometimes omit newlines).
+_JSON_BLOCK_RE = re.compile(r"```json\s*(\{.*?\})\s*```", re.DOTALL | re.IGNORECASE)
+
+# Fallback: extract O(...) from Markdown headings when the JSON block is absent.
+_TIME_HEADING_RE = re.compile(r"###\s*Time\s+Complexity\s*[:：]\s*(O\([^)]*\))", re.IGNORECASE)
+_SPACE_HEADING_RE = re.compile(r"###\s*Space\s+Complexity\s*[:：]\s*(O\([^)]*\))", re.IGNORECASE)
+
 
 class GeminiProvider(LLMProvider):
     """Gemini-based LLM provider for complexity analysis."""
@@ -29,7 +39,7 @@ class GeminiProvider(LLMProvider):
         self._explicit_api_key = api_key
         self._client: genai.Client | None = None
         self._prompt_template: str | None = None
-        self._model: str | None = None  # Loaded from settings during init
+        self._model: str | None = None
         self._initialized = False
 
     def _ensure_initialized(self) -> None:
@@ -38,13 +48,11 @@ class GeminiProvider(LLMProvider):
             return
 
         self._initialized = True
-        # Get API key (either explicit or from settings)
         self.api_key = self._explicit_api_key or settings.resolved_gemini_api_key
-        # Get model from resolved settings (hierarchical config)
         try:
             self._model = settings.resolved_llm_analysis_model
         except ValueError:
-            self._model = None  # No model configured
+            self._model = None
 
         if self.api_key:
             self._client = genai.Client(api_key=self.api_key)
@@ -63,69 +71,71 @@ class GeminiProvider(LLMProvider):
             if PROMPT_PATH.exists():
                 self._prompt_template = PROMPT_PATH.read_text()
             else:
-                # Fallback inline prompt
-                self._prompt_template = """
-Analyze this Python code's complexity:
-```python
-{code}
-```
-
-Respond with JSON only:
-{{"time_complexity": "O(...)", "space_complexity": "O(...)", "time_explanation": "...", "space_explanation": "...", "algorithm_identified": "...", "suggestions": []}}
-"""
+                self._prompt_template = (
+                    "Analyze this Python code's complexity:\n"
+                    "```python\n{code}\n```\n\n"
+                    "Respond with Markdown analysis then a JSON block:\n"
+                    '```json\n{{"time_complexity": "O(...)", "space_complexity": "O(...)"}}\n```'
+                )
         return self._prompt_template
 
+    def _build_gen_config(self) -> tuple[str, types.GenerateContentConfig]:
+        """Build generation config from settings.
+
+        Returns:
+            Tuple of (model_name, GenerateContentConfig).
+        """
+        model = settings.resolved_llm_analysis_model
+        temperature = settings.resolved_llm_analysis_temperature
+        max_output_tokens = settings.resolved_llm_analysis_max_tokens
+        thinking_budget = settings.resolved_llm_analysis_thinking_budget
+
+        gen_config = types.GenerateContentConfig(
+            temperature=temperature,
+            max_output_tokens=max_output_tokens,
+        )
+        if thinking_budget is not None:
+            gen_config.thinking_config = types.ThinkingConfig(thinking_budget=thinking_budget)
+        return model, gen_config
+
+    def _not_configured_result(self) -> ComplexityResult:
+        """Return an error result when API key is not set."""
+        return ComplexityResult(
+            time_complexity="Unknown",
+            space_complexity="Unknown",
+            narrative="",
+            error="GEMINI_API_KEY not set",
+            model=self._model,
+        )
+
+    # ------------------------------------------------------------------
+    # Non-streaming (sync HTTP fallback)
+    # ------------------------------------------------------------------
+
     async def analyze_complexity(self, code: str) -> ComplexityResult:
-        """Analyze code complexity using Gemini.
+        """Analyze code complexity using Gemini (non-streaming).
 
         Args:
             code: Python code to analyze
 
         Returns:
-            ComplexityResult with analysis
+            ComplexityResult with narrative and structured complexity values.
         """
         if not self.is_configured() or self._client is None:
-            return ComplexityResult(
-                time_complexity="Unknown",
-                space_complexity="Unknown",
-                time_explanation="Gemini API key not configured",
-                space_explanation="Gemini API key not configured",
-                error="GEMINI_API_KEY not set",
-                model=self._model,
-            )
+            return self._not_configured_result()
 
         try:
             prompt = self._load_prompt_template().format(code=code)
+            model, gen_config = self._build_gen_config()
 
-            # Config for generation (from settings - all use resolved_ to validate)
-            model = settings.resolved_llm_analysis_model
-            temperature = settings.resolved_llm_analysis_temperature
-            max_output_tokens = settings.resolved_llm_analysis_max_tokens
-            thinking_budget = settings.resolved_llm_analysis_thinking_budget  # None = omit
+            logger.info(f"Gemini request: model={model}")
 
-            logger.info(
-                f"Gemini request: model={model}, temp={temperature}, max_tokens={max_output_tokens}, thinking_budget={thinking_budget}"
-            )
-
-            # Generate response using the new SDK async API with tracing
             with llm_span(
                 "generate_content",
                 model,
                 operation_type="complexity_analysis",
-                temperature=temperature,
-                max_output_tokens=max_output_tokens,
                 prompt_chars=len(prompt),
             ) as span:
-                # Build config - only include thinking_config if thinking_budget is set
-                gen_config = types.GenerateContentConfig(
-                    temperature=temperature,
-                    max_output_tokens=max_output_tokens,
-                )
-                if thinking_budget is not None:
-                    gen_config.thinking_config = types.ThinkingConfig(
-                        thinking_budget=thinking_budget
-                    )
-
                 response = await self._client.aio.models.generate_content(
                     model=model,
                     contents=prompt,
@@ -134,111 +144,183 @@ Respond with JSON only:
 
                 raw_text = response.text.strip() if response.text else ""
 
-                # Add response attributes to span including token usage
                 usage = response.usage_metadata
                 add_llm_response_attributes(
                     span,
-                    # Response info
                     response_chars=len(raw_text),
                     response_truncated=raw_text[:200] if raw_text else None,
                     finish_reason=str(response.candidates[0].finish_reason)
                     if response.candidates
                     else None,
-                    # Token usage
                     input_tokens=usage.prompt_token_count if usage else None,
                     output_tokens=usage.candidates_token_count if usage else None,
                     thinking_tokens=usage.thoughts_token_count if usage else None,
                     total_tokens=usage.total_token_count if usage else None,
-                    # Model info for debugging
                     response_id=response.response_id,
                     model_version=getattr(response, "model_version", None),
                 )
 
-            # Log raw response for debugging
-            logger.debug(f"Raw Gemini response: {repr(raw_text)}")
-
-            # Log finish reason - if it's not STOP, response may be truncated
-            if response.candidates:
-                finish_reason = response.candidates[0].finish_reason
-                logger.info(f"Gemini finish_reason: {finish_reason}")
-                if str(finish_reason) != "STOP" and str(finish_reason) != "FinishReason.STOP":
-                    logger.warning(f"Response may be truncated! finish_reason={finish_reason}")
-
-            # Parse JSON response
+            logger.debug(f"Raw Gemini response: {repr(raw_text[:300])}")
             return self._parse_response(raw_text, model=model)
 
-        except json.JSONDecodeError as e:
-            raw_for_log = raw_text if "raw_text" in locals() else "N/A"
-            logger.error(f"Failed to parse Gemini response as JSON: {e}")
-            logger.error(
-                f"Raw response (first 500 chars): {raw_for_log[:500] if raw_for_log else 'empty'}"
-            )
-            logger.error(f"Raw response length: {len(raw_for_log) if raw_for_log else 0}")
-            return ComplexityResult(
-                time_complexity="Unknown",
-                space_complexity="Unknown",
-                time_explanation="Failed to parse LLM response",
-                space_explanation="Failed to parse LLM response",
-                raw_response=raw_text if "raw_text" in locals() else None,
-                error=f"JSON parse error: {str(e)}",
-                model=self._model,
-            )
         except Exception as e:
             logger.error(f"Gemini API error: {e}")
             return ComplexityResult(
                 time_complexity="Unknown",
                 space_complexity="Unknown",
-                time_explanation="LLM analysis failed",
-                space_explanation="LLM analysis failed",
+                narrative="",
                 error=str(e),
                 model=self._model,
             )
 
+    # ------------------------------------------------------------------
+    # Streaming (WebSocket push)
+    # ------------------------------------------------------------------
+
+    async def analyze_complexity_stream(
+        self, code: str
+    ) -> AsyncGenerator[str | ComplexityResult, None]:
+        """Stream complexity analysis, yielding text chunks then final result.
+
+        Yields:
+            str: Raw text chunks from the LLM as they arrive.
+            ComplexityResult: Final parsed result (last item yielded).
+        """
+        if not self.is_configured() or self._client is None:
+            yield self._not_configured_result()
+            return
+
+        try:
+            prompt = self._load_prompt_template().format(code=code)
+            model, gen_config = self._build_gen_config()
+
+            logger.info(f"Gemini streaming request: model={model}")
+
+            with llm_span(
+                "generate_content_stream",
+                model,
+                operation_type="complexity_analysis_stream",
+                prompt_chars=len(prompt),
+            ) as span:
+                accumulated = ""
+                chunk_count = 0
+                last_chunk = None
+
+                async for chunk in await self._client.aio.models.generate_content_stream(
+                    model=model,
+                    contents=prompt,
+                    config=gen_config,
+                ):
+                    chunk_count += 1
+                    last_chunk = chunk
+                    text = chunk.text or ""
+                    if text:
+                        accumulated += text
+                        yield text
+
+                # Attach response attributes from the final chunk
+                usage = last_chunk.usage_metadata if last_chunk else None
+                add_llm_response_attributes(
+                    span,
+                    response_chars=len(accumulated),
+                    response_truncated=accumulated[:200] if accumulated else None,
+                    finish_reason=str(last_chunk.candidates[0].finish_reason)
+                    if last_chunk and last_chunk.candidates
+                    else None,
+                    input_tokens=usage.prompt_token_count if usage else None,
+                    output_tokens=usage.candidates_token_count if usage else None,
+                    thinking_tokens=usage.thoughts_token_count if usage else None,
+                    total_tokens=usage.total_token_count if usage else None,
+                    stream_chunk_count=chunk_count,
+                    response_id=getattr(last_chunk, "response_id", None) if last_chunk else None,
+                    model_version=getattr(last_chunk, "model_version", None)
+                    if last_chunk
+                    else None,
+                )
+
+            logger.debug(f"Streaming complete, total chars: {len(accumulated)}")
+            yield self._parse_response(accumulated, model=model)
+
+        except Exception as e:
+            logger.error(f"Gemini streaming error: {e}")
+            yield ComplexityResult(
+                time_complexity="Unknown",
+                space_complexity="Unknown",
+                narrative="",
+                error=str(e),
+                model=self._model,
+            )
+
+    # ------------------------------------------------------------------
+    # Response parsing
+    # ------------------------------------------------------------------
+
     def _parse_response(self, raw_text: str, model: str | None = None) -> ComplexityResult:
-        """Parse the JSON response from Gemini.
+        """Parse the Markdown narrative + trailing JSON block.
+
+        The LLM responds with a Markdown analysis followed by a fenced
+        JSON block containing ``{"time_complexity": "...", "space_complexity": "..."}``.
 
         Args:
-            raw_text: Raw response text from Gemini
-            model: The model name used for analysis
+            raw_text: Full response text from Gemini.
+            model: The model name used for analysis.
 
         Returns:
-            Parsed ComplexityResult
+            Parsed ComplexityResult.
         """
-        # Strip markdown code blocks if present
-        text = raw_text
-        if text.startswith("```json"):
-            text = text[7:]
-        elif text.startswith("```"):
-            text = text[3:]
-        if text.endswith("```"):
-            text = text[:-3]
-        text = text.strip()
+        matches = list(_JSON_BLOCK_RE.finditer(raw_text))
 
-        data = json.loads(text)
+        if matches:
+            last_match = matches[-1]
+            json_str = last_match.group(1).strip()
+            narrative = raw_text[: last_match.start()].strip()
 
-        # Normalize suggestions - model may return objects or strings
-        raw_suggestions = data.get("suggestions")
-        suggestions: list[str] | None = None
-        if raw_suggestions:
-            suggestions = []
-            for s in raw_suggestions:
-                if isinstance(s, str):
-                    suggestions.append(s)
-                elif isinstance(s, dict):
-                    # Extract description from structured suggestion
-                    desc = s.get("description") or s.get("text") or str(s)
-                    suggestions.append(desc)
+            try:
+                data = json.loads(json_str)
+                return ComplexityResult(
+                    time_complexity=data.get("time_complexity", "Unknown"),
+                    space_complexity=data.get("space_complexity", "Unknown"),
+                    narrative=narrative,
+                    raw_response=raw_text,
+                    model=model or self._model,
+                )
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse JSON block: {e}")
+                return ComplexityResult(
+                    time_complexity="Unknown",
+                    space_complexity="Unknown",
+                    narrative=raw_text.strip(),
+                    raw_response=raw_text,
+                    error=f"JSON parse error: {e}",
+                    model=model or self._model,
+                )
+        else:
+            # Fallback: try extracting from ### headings
+            time_match = _TIME_HEADING_RE.search(raw_text)
+            space_match = _SPACE_HEADING_RE.search(raw_text)
 
-        return ComplexityResult(
-            time_complexity=data.get("time_complexity", "Unknown"),
-            space_complexity=data.get("space_complexity", "Unknown"),
-            time_explanation=data.get("time_explanation", ""),
-            space_explanation=data.get("space_explanation", ""),
-            algorithm_identified=data.get("algorithm_identified"),
-            suggestions=suggestions if suggestions else None,
-            raw_response=raw_text,
-            model=model or self._model,
-        )
+            if time_match or space_match:
+                logger.info("No JSON block found; extracted complexity from headings")
+                return ComplexityResult(
+                    time_complexity=time_match.group(1) if time_match else "Unknown",
+                    space_complexity=space_match.group(1) if space_match else "Unknown",
+                    narrative=raw_text.strip(),
+                    raw_response=raw_text,
+                    model=model or self._model,
+                )
+
+            logger.warning(
+                "No JSON block or heading complexity found in LLM response: %s",
+                repr(raw_text[:300]),
+            )
+            return ComplexityResult(
+                time_complexity="Unknown",
+                space_complexity="Unknown",
+                narrative=raw_text.strip(),
+                raw_response=raw_text,
+                error="Could not extract complexity values from response",
+                model=model or self._model,
+            )
 
 
 # Singleton instance

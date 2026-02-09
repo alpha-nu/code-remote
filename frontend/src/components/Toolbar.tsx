@@ -2,15 +2,20 @@
  * Toolbar with run button and settings.
  */
 
-import { useEditorStore } from '../store/editorStore';
+import { useEditorStore, updateSnippetCachesAfterAnalysis } from '../store/editorStore';
 import { executeCode, executeCodeAsync } from '../api/client';
 import { UserMenu } from './UserMenu';
 import { useEffect, useState, useCallback } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { useWebSocket, type ExecutionResultMessage, type WebSocketMessage, type ConnectionState } from '../hooks';
-import type { ExecutionResponse } from '../types/execution';
+import type { ExecutionResponse, AnalyzeResponse } from '../types/execution';
 
-export function Toolbar({ onConnectionStateChange }: { onConnectionStateChange?: (state: ConnectionState) => void }) {
+interface ToolbarProps {
+  onConnectionStateChange?: (state: ConnectionState) => void;
+  onConnectionIdChange?: (id: string | null) => void;
+}
+
+export function Toolbar({ onConnectionStateChange, onConnectionIdChange }: ToolbarProps) {
   const {
     code,
     isExecuting,
@@ -35,42 +40,80 @@ export function Toolbar({ onConnectionStateChange }: { onConnectionStateChange?:
     onConnectionStateChange?.(connectionState);
   }, [connectionState, onConnectionStateChange]);
 
+  // Notify parent of connectionId changes
+  useEffect(() => {
+    onConnectionIdChange?.(connectionId);
+  }, [connectionId, onConnectionIdChange]);
+
   // Track pending job for async execution
   const [pendingJobId, setPendingJobId] = useState<string | null>(null);
 
   // Handle incoming execution results via WebSocket
   const handleMessage = useCallback((message: WebSocketMessage) => {
-    if (message.type !== 'execution_result') return;
+    // --- Execution results ---
+    if (message.type === 'execution_result') {
+      const resultMsg = message as unknown as ExecutionResultMessage;
+      if (resultMsg.job_id !== pendingJobId) return;
 
-    const resultMsg = message as unknown as ExecutionResultMessage;
-    if (resultMsg.job_id !== pendingJobId) return;
+      const result: ExecutionResponse = {
+        success: resultMsg.success,
+        stdout: resultMsg.stdout,
+        stderr: resultMsg.stderr,
+        error: resultMsg.error,
+        error_type: resultMsg.error_type,
+        execution_time_ms: resultMsg.execution_time_ms,
+        timed_out: resultMsg.timed_out,
+        security_violations: resultMsg.security_violations.map((v) => ({
+          type: 'security',
+          message: v.message,
+          line: v.line,
+          column: v.column,
+        })),
+      };
 
-    // Convert to ExecutionResponse format
-    const result: ExecutionResponse = {
-      success: resultMsg.success,
-      stdout: resultMsg.stdout,
-      stderr: resultMsg.stderr,
-      error: resultMsg.error,
-      error_type: resultMsg.error_type,
-      execution_time_ms: resultMsg.execution_time_ms,
-      timed_out: resultMsg.timed_out,
-      security_violations: resultMsg.security_violations.map((v) => ({
-        type: 'security',
-        message: v.message,
-        line: v.line,
-        column: v.column,
-      })),
-    };
+      setResult(result);
+      setIsExecuting(false);
+      setPendingJobId(null);
 
-    setResult(result);
-    setIsExecuting(false);
-    setPendingJobId(null);
-
-    // Auto-analyze after successful execution
-    if (autoAnalyze && result.success) {
-      useEditorStore.getState().analyze();
+      // Auto-analyze after successful execution
+      if (autoAnalyze && result.success) {
+        useEditorStore.getState().analyze(connectionId);
+      }
+      return;
     }
-  }, [pendingJobId, setResult, setIsExecuting, autoAnalyze]);
+
+    // --- Analysis streaming ---
+    const store = useEditorStore.getState();
+    const currentJobId = store.analysisJobId;
+
+    if (message.type === 'analysis_stream_chunk') {
+      const jobId = message.job_id as string;
+      if (jobId !== currentJobId) return;
+      store.appendAnalysisStreamChunk(message.chunk as string);
+      return;
+    }
+
+    if (message.type === 'analysis_stream_complete') {
+      const jobId = message.job_id as string;
+      if (jobId !== currentJobId) return;
+      const result = (message as unknown as { result: AnalyzeResponse }).result;
+      store.setAnalysis(result);
+      store.setIsAnalyzing(false);
+      store.setAnalysisJobId(null);
+      // Note: analysisStreamText is cleared by ComplexityPanel once the typewriter finishes
+      updateSnippetCachesAfterAnalysis(result);
+      return;
+    }
+
+    if (message.type === 'analysis_stream_error') {
+      const jobId = message.job_id as string;
+      if (jobId !== currentJobId) return;
+      store.setIsAnalyzing(false);
+      store.setAnalysisJobId(null);
+      store.setApiError(message.error as string);
+      return;
+    }
+  }, [pendingJobId, setResult, setIsExecuting, autoAnalyze, connectionId]);
 
   // Register message handler
   useEffect(() => {

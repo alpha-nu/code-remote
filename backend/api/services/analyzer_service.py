@@ -1,5 +1,7 @@
 """Analyzer service for API layer."""
 
+from collections.abc import AsyncGenerator
+
 from analyzer import ComplexityResult, get_complexity_analyzer
 from api.schemas.analysis import AnalyzeResponse
 
@@ -12,7 +14,7 @@ class AnalyzerService:
         self._analyzer = get_complexity_analyzer()
 
     async def analyze(self, code: str) -> AnalyzeResponse:
-        """Analyze code complexity.
+        """Analyze code complexity (non-streaming, for sync HTTP fallback).
 
         Args:
             code: Python code to analyze
@@ -26,14 +28,34 @@ class AnalyzerService:
             success=result.error is None,
             time_complexity=result.time_complexity,
             space_complexity=result.space_complexity,
-            time_explanation=result.time_explanation,
-            space_explanation=result.space_explanation,
-            algorithm_identified=result.algorithm_identified,
-            suggestions=result.suggestions,
+            narrative=result.narrative,
             error=result.error,
             available=self._analyzer.is_available(),
             model=result.model,
         )
+
+    async def analyze_stream(self, code: str) -> AsyncGenerator[str | AnalyzeResponse, None]:
+        """Stream analysis chunks, then yield the final AnalyzeResponse.
+
+        Used for WebSocket streaming.
+
+        Yields:
+            str: Raw text chunks from the LLM.
+            AnalyzeResponse: Final parsed result (last item).
+        """
+        async for item in self._analyzer.analyze_stream(code):
+            if isinstance(item, str):
+                yield item
+            elif isinstance(item, ComplexityResult):
+                yield AnalyzeResponse(
+                    success=item.error is None,
+                    time_complexity=item.time_complexity,
+                    space_complexity=item.space_complexity,
+                    narrative=item.narrative,
+                    error=item.error,
+                    available=self._analyzer.is_available(),
+                    model=item.model,
+                )
 
     def is_available(self) -> bool:
         """Check if analysis is available."""

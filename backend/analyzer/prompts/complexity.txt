@@ -6,34 +6,44 @@ Analyze the following Python code and determine its time and space complexity.
 ```
 
 ## Instructions:
-1. Identify the main algorithm or operations
-2. Determine time complexity (Big O notation)
-3. Determine space complexity (Big O notation)
-4. Keep explanations VERY brief (1-2 sentences max each)
+Write a concise Markdown analysis with the following sections. Use EXACTLY these headings.
+
+### Algorithm
+Identify the main algorithm or technique. 1 sentence.
+
+### Time Complexity: O(...)
+Include the Big O in the heading. Explain WHY in 1-2 sentences.
+
+### Space Complexity: O(...)
+Include the Big O in the heading. Explain WHY in 1-2 sentences.
+
+### Suggestions
+Bullet list of 1-3 practical improvements. Omit this section entirely if none apply.
 
 ## CRITICAL: Response constraints
-- MAXIMUM 500 tokens total
-- Each explanation: 1-2 sentences ONLY
-- No verbose descriptions - be concise and technical
-- Respond ONLY with valid JSON, no markdown code blocks
-- Empty suggestions array unless truly critical
+- MAXIMUM 500 tokens for the Markdown section
+- Be concise and technical — no filler
+- After the Markdown, output a single fenced JSON block with ONLY the Big O values:
 
-## Response format:
-{{
-  "time_complexity": "O(...)",
-  "space_complexity": "O(...)",
-  "time_explanation": "One brief sentence.",
-  "space_explanation": "One brief sentence.",
-  "algorithm_identified": "Algorithm name or null",
-  "suggestions": []
-}}
+```json
+{{"time_complexity": "O(...)", "space_complexity": "O(...)"}}
+```
 
-Example of ideal brevity:
-{{
-  "time_complexity": "O(n²)",
-  "space_complexity": "O(1)",
-  "time_explanation": "Nested loops over input array.",
-  "space_explanation": "Only constant extra variables used.",
-  "algorithm_identified": "Bubble sort",
-  "suggestions": []
-}}
+## Example response:
+
+### Algorithm
+Bubble sort — a comparison-based sorting algorithm.
+
+### Time Complexity: O(n²)
+Nested loops iterate over the input array, comparing adjacent elements.
+
+### Space Complexity: O(1)
+Sorts in-place with only constant extra variables.
+
+### Suggestions
+- Use Python's built-in `sorted()` for O(n log n) average performance.
+- Consider insertion sort for nearly-sorted inputs.
+
+```json
+{{"time_complexity": "O(n²)", "space_complexity": "O(1)"}}
+```

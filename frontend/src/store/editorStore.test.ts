@@ -3,12 +3,27 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-// Mock the client module so tests can stub analyzeCode at runtime
+// Mock the client module so tests can stub analyzeCode / analyzeCodeAsync at runtime
 vi.mock('../api/client', () => ({
   analyzeCode: vi.fn(),
+  analyzeCodeAsync: vi.fn(),
 }));
 import type { AnalyzeResponse } from '../types/execution';
 import { useEditorStore } from './editorStore';
+
+/** Helper to build a mock AnalyzeResponse with sane defaults. */
+function mockAnalyzeResponse(overrides: Partial<AnalyzeResponse> = {}): AnalyzeResponse {
+  return {
+    success: true,
+    time_complexity: 'O(n)',
+    space_complexity: 'O(1)',
+    narrative: '### Algorithm\nLinear scan.',
+    error: null,
+    available: true,
+    model: 'gemini-2.0-flash',
+    ...overrides,
+  };
+}
 
 describe('useEditorStore', () => {
   beforeEach(() => {
@@ -76,18 +91,7 @@ describe('useEditorStore', () => {
 
     it('should update analysis', () => {
       const { setAnalysis } = useEditorStore.getState();
-      const mockAnalysis = {
-        success: true,
-        time_complexity: 'O(n)',
-        space_complexity: 'O(1)',
-        time_explanation: 'Linear iteration',
-        space_explanation: 'Constant space',
-        algorithm_identified: null,
-        suggestions: null,
-        error: null,
-        available: true,
-        model: 'gemini-pro',
-      };
+      const mockAnalysis = mockAnalyzeResponse();
       setAnalysis(mockAnalysis);
       expect(useEditorStore.getState().analysis).toEqual(mockAnalysis);
     });
@@ -101,6 +105,34 @@ describe('useEditorStore', () => {
       const { setAutoAnalyze } = useEditorStore.getState();
       setAutoAnalyze(false);
       expect(useEditorStore.getState().autoAnalyze).toBe(false);
+    });
+  });
+
+  describe('analysis streaming state', () => {
+    it('should have initial analysisStreamText as empty string', () => {
+      const { analysisStreamText } = useEditorStore.getState();
+      expect(analysisStreamText).toBe('');
+    });
+
+    it('should have initial analysisJobId as null', () => {
+      const { analysisJobId } = useEditorStore.getState();
+      expect(analysisJobId).toBeNull();
+    });
+
+    it('should append stream chunks', () => {
+      const store = useEditorStore.getState();
+      store.appendAnalysisStreamChunk('### Algorithm\n');
+      expect(useEditorStore.getState().analysisStreamText).toBe('### Algorithm\n');
+      store.appendAnalysisStreamChunk('Linear scan.');
+      expect(useEditorStore.getState().analysisStreamText).toBe('### Algorithm\nLinear scan.');
+    });
+
+    it('should reset streaming state on reset()', () => {
+      const store = useEditorStore.getState();
+      store.appendAnalysisStreamChunk('partial data');
+      store.reset();
+      expect(useEditorStore.getState().analysisStreamText).toBe('');
+      expect(useEditorStore.getState().analysisJobId).toBeNull();
     });
   });
 
@@ -148,6 +180,7 @@ describe('useEditorStore', () => {
         security_violations: [],
       });
       store.setApiError('error');
+      store.appendAnalysisStreamChunk('partial');
 
       // Reset
       store.reset();
@@ -158,28 +191,17 @@ describe('useEditorStore', () => {
       expect(resetState.isExecuting).toBe(false);
       expect(resetState.result).toBeNull();
       expect(resetState.apiError).toBeNull();
+      expect(resetState.analysisStreamText).toBe('');
+      expect(resetState.analysisJobId).toBeNull();
     });
   });
 
   describe('analysis lifecycle', () => {
     it('clears analysis when code changes from last analyzed value', () => {
       const store = useEditorStore.getState();
-      // set a mock analysis and lastAnalyzedCode
-      const mockAnalysisObj: AnalyzeResponse = {
-        success: true,
-        time_complexity: 'O(n)',
-        space_complexity: 'O(1)',
-        time_explanation: 'ex',
-        space_explanation: 'ex',
-        algorithm_identified: null,
-        suggestions: null,
-        error: null,
-        available: true,
-        model: 'gemini-pro',
-      };
+      const mockAnalysisObj = mockAnalyzeResponse();
 
       store.setAnalysis(mockAnalysisObj);
-
       store.setLastAnalyzedCode('original');
 
       // Change to same code -> keep analysis
@@ -192,19 +214,7 @@ describe('useEditorStore', () => {
     });
 
     it('analyze() calls analyzeCode and sets lastAnalyzedCode', async () => {
-      // Mock the analyzeCode module
-      const mockAnalysis: AnalyzeResponse = {
-        success: true,
-        time_complexity: 'O(n)',
-        space_complexity: 'O(1)',
-        time_explanation: 'ex',
-        space_explanation: 'ex',
-        algorithm_identified: null,
-        suggestions: [],
-        error: null,
-        available: true,
-        model: 'gemini-pro',
-      };
+      const mockAnalysis = mockAnalyzeResponse();
 
       // Dynamically mock the module used by the store's analyze() (../api/client)
       const clientModule = await import('../api/client');

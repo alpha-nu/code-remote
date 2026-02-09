@@ -20,6 +20,7 @@ configureAmplify();
 function AppContent() {
   const initialize = useAuthStore((state) => state.initialize);
   const [connectionState, setConnectionState] = useState<ConnectionState>('disconnected');
+  const [connectionId, setConnectionId] = useState<string | null>(null);
 
   useEffect(() => {
     // Initialize auth state on mount
@@ -36,14 +37,14 @@ function AppContent() {
 
   return (
     <div className="app">
-      <Toolbar onConnectionStateChange={setConnectionState} />
+      <Toolbar onConnectionStateChange={setConnectionState} onConnectionIdChange={setConnectionId} />
       <main className="main-content">
         <SnippetsPanel />
         <div className="editor-pane">
           <CodeEditor connectionState={connectionState} />
         </div>
         <div className="output-pane">
-          <OutputPanel />
+          <OutputPanel connectionState={connectionState} connectionId={connectionId} />
         </div>
       </main>
     </div>

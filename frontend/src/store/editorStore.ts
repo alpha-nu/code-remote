@@ -58,12 +58,19 @@ interface EditorState {
   analysis: AnalyzeResponse | null;
   setAnalysis: (analysis: AnalyzeResponse | null) => void;
 
+  // Streaming analysis state
+  analysisStreamText: string;
+  setAnalysisStreamText: (text: string) => void;
+  appendAnalysisStreamChunk: (chunk: string) => void;
+  analysisJobId: string | null;
+  setAnalysisJobId: (jobId: string | null) => void;
+
   // Track last analyzed code to know when analysis is stale
   lastAnalyzedCode: string | null;
   setLastAnalyzedCode: (code: string | null) => void;
 
   // Convenience: analyze current code (calls API)
-  analyze: () => Promise<void>;
+  analyze: (connectionId?: string | null) => Promise<void>;
   autoAnalyze: boolean;
   setAutoAnalyze: (autoAnalyze: boolean) => void;
 
@@ -108,6 +115,14 @@ export const useEditorStore = create<EditorState>((set) => ({
   analysis: null,
   setAnalysis: (analysis) => set({ analysis }),
 
+  // Streaming analysis state
+  analysisStreamText: '',
+  setAnalysisStreamText: (text) => set({ analysisStreamText: text }),
+  appendAnalysisStreamChunk: (chunk) =>
+    set((state) => ({ analysisStreamText: state.analysisStreamText + chunk })),
+  analysisJobId: null,
+  setAnalysisJobId: (jobId) => set({ analysisJobId: jobId }),
+
   lastAnalyzedCode: null,
   setLastAnalyzedCode: (code) => set({ lastAnalyzedCode: code }),
 
@@ -115,60 +130,33 @@ export const useEditorStore = create<EditorState>((set) => ({
   hasRun: false,
   setHasRun: (hasRun: boolean) => set({ hasRun }),
 
-  analyze: async () => {
-    const { analyzeCode } = await import('../api/client');
+  analyze: async (connectionId?: string | null) => {
+    const { analyzeCode, analyzeCodeAsync } = await import('../api/client');
     const { useSnippetsStore } = await import('./snippetsStore');
-    const { queryClient } = await import('../utils/queryClient');
-    set({ isAnalyzing: true, analysis: null });
+    set({ isAnalyzing: true, analysis: null, analysisStreamText: '', analysisJobId: null });
     try {
       const code = useEditorStore.getState().code;
       const snippetId = useSnippetsStore.getState().loadedSnippetId;
-      const analysis = await analyzeCode({
-        code,
-        snippet_id: snippetId ?? undefined,
-      });
-      set({ analysis, lastAnalyzedCode: code });
 
-      // Update snippet cache with new complexity values if analysis succeeded
-      if (snippetId && analysis.success) {
-        // Update individual snippet in cache if it exists
-        queryClient.setQueryData<Snippet>(
-          ['snippet', snippetId],
-          (old) => old ? {
-            ...old,
-            timeComplexity: analysis.time_complexity,
-            spaceComplexity: analysis.space_complexity,
-          } : old
-        );
-
-        // Update snippet in the list cache
-        queryClient.setQueriesData<SnippetListResponse>(
-          { queryKey: ['snippets'] },
-          (old) => {
-            if (!old?.items) return old;
-            return {
-              ...old,
-              items: old.items.map((snippet) =>
-                snippet.id === snippetId
-                  ? {
-                      ...snippet,
-                      timeComplexity: analysis.time_complexity,
-                      spaceComplexity: analysis.space_complexity,
-                    }
-                  : snippet
-              ),
-            };
-          }
-        );
-
-        // Invalidate search and filter queries to force a refetch
-        await queryClient.invalidateQueries({ queryKey: ['search'] });
-        await queryClient.invalidateQueries({ queryKey: ['complexity'] });
-
+      if (connectionId) {
+        // Async streaming via WebSocket
+        const response = await analyzeCodeAsync({
+          code,
+          connection_id: connectionId,
+          snippet_id: snippetId ?? undefined,
+        });
+        set({ analysisJobId: response.job_id, lastAnalyzedCode: code });
+        // Result will arrive via WebSocket messages — handled by Toolbar
+      } else {
+        // Sync HTTP fallback
+        const analysis = await analyzeCode({
+          code,
+          snippet_id: snippetId ?? undefined,
+        });
+        set({ analysis, lastAnalyzedCode: code, isAnalyzing: false });
+        updateSnippetCachesAfterAnalysis(analysis);
       }
     } catch {
-      // ignore analysis errors
-    } finally {
       set({ isAnalyzing: false });
     }
   },
@@ -189,8 +177,53 @@ export const useEditorStore = create<EditorState>((set) => ({
       result: null,
       isAnalyzing: false,
       analysis: null,
+      analysisStreamText: '',
+      analysisJobId: null,
       autoAnalyze: false,
       apiError: null,
       timeoutSeconds: 30,
     }),
 }));
+
+/**
+ * Update snippet caches after a successful analysis.
+ * Exported so the streaming WS handler can call it on stream complete.
+ */
+export async function updateSnippetCachesAfterAnalysis(analysis: AnalyzeResponse) {
+  const { useSnippetsStore } = await import('./snippetsStore');
+  const { queryClient } = await import('../utils/queryClient');
+  const snippetId = useSnippetsStore.getState().loadedSnippetId;
+
+  if (snippetId && analysis.success) {
+    queryClient.setQueryData<Snippet>(
+      ['snippet', snippetId],
+      (old) => old ? {
+        ...old,
+        timeComplexity: analysis.time_complexity,
+        spaceComplexity: analysis.space_complexity,
+      } : old
+    );
+
+    queryClient.setQueriesData<SnippetListResponse>(
+      { queryKey: ['snippets'] },
+      (old) => {
+        if (!old?.items) return old;
+        return {
+          ...old,
+          items: old.items.map((snippet) =>
+            snippet.id === snippetId
+              ? {
+                  ...snippet,
+                  timeComplexity: analysis.time_complexity,
+                  spaceComplexity: analysis.space_complexity,
+                }
+              : snippet
+          ),
+        };
+      }
+    );
+
+    await queryClient.invalidateQueries({ queryKey: ['search'] });
+    await queryClient.invalidateQueries({ queryKey: ['complexity'] });
+  }
+}

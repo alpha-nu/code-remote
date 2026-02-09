@@ -40,8 +40,11 @@ class GeminiProvider(LLMProvider):
         self._initialized = True
         # Get API key (either explicit or from settings)
         self.api_key = self._explicit_api_key or settings.resolved_gemini_api_key
-        # Get model from settings
-        self._model = settings.gemini_model
+        # Get model from resolved settings (hierarchical config)
+        try:
+            self._model = settings.resolved_llm_analysis_model
+        except ValueError:
+            self._model = None  # No model configured
 
         if self.api_key:
             self._client = genai.Client(api_key=self.api_key)

@@ -29,7 +29,16 @@ os.environ.setdefault("NEO4J_URI", "")
 os.environ.setdefault("NEO4J_USERNAME", "neo4j")
 os.environ.setdefault("NEO4J_PASSWORD", "")
 os.environ.setdefault("NEO4J_DATABASE", "neo4j")
-os.environ.setdefault("GEMINI_EMBEDDING_MODEL", "gemini-embedding-001")
+
+# LLM settings (required after removing legacy fallbacks)
+os.environ.setdefault("LLM_ANALYSIS_MODEL", "gemini-2.0-flash")
+os.environ.setdefault("LLM_CYPHER_MODEL", "gemini-2.0-flash")
+os.environ.setdefault("LLM_EMBEDDING_MODEL", "gemini-embedding-001")
+os.environ.setdefault("LLM_ANALYSIS_TEMPERATURE", "0.2")
+os.environ.setdefault("LLM_ANALYSIS_MAX_TOKENS", "4096")
+os.environ.setdefault("LLM_CYPHER_TEMPERATURE", "0.0")
+os.environ.setdefault("LLM_CYPHER_MAX_TOKENS", "2048")
+
 os.environ.setdefault("SNIPPET_SYNC_QUEUE_URL", "")
 
 import pytest

@@ -76,14 +76,28 @@ class AWSQueue(QueueProvider):  # Initial implementation
 
 ### Local Development
 ```bash
-# Start all services
-docker-compose up -d
+# 1. Set up backend (from repo root)
+uv venv .venv
+source .venv/bin/activate
+uv pip install -e "backend[dev]"
+cp backend/.env.example backend/.env
+# -> Add your GEMINI_API_KEY to backend/.env
 
-# Backend with hot reload
-cd backend && uvicorn api.main:app --reload --port 8000
+# 2. Set up frontend
+cd frontend
+npm install
+cd ..
 
-# Frontend
-cd frontend && npm run dev
+# 3. Start all services (from repo root)
+docker-compose up -d # For databases, etc.
+
+# 4. Run backend with hot reload
+cd backend
+uvicorn api.main:app --reload --port 8000
+
+# 5. Run frontend
+cd frontend
+npm run dev
 
 # Run sandbox locally (relaxed security for debugging)
 docker run --rm -e RELAXED_MODE=true executor:dev
@@ -91,15 +105,34 @@ docker run --rm -e RELAXED_MODE=true executor:dev
 
 ### Testing
 ```bash
-# Unit tests (mock external services)
-pytest backend/tests/unit/ -v --cov
+# === Backend ===
+cd backend
 
-# Integration tests (real containers via docker-compose.test.yml)
-docker-compose -f docker-compose.test.yml up -d
-pytest backend/tests/integration/ -v
+# Run all backend tests
+pytest
 
-# E2E (requires staging deployment)
-pytest backend/tests/e2e/ --env=staging
+# Run with coverage report
+pytest --cov --cov-report=html
+
+# Run specific test categories
+pytest tests/unit/ -v           # Unit tests
+pytest tests/integration/ -v    # Integration tests
+
+# Lint and format
+ruff check . --fix
+ruff format .
+
+# === Frontend ===
+cd frontend
+
+# Run unit tests
+npm run test
+
+# Type checking
+npm run type-check
+
+# Lint
+npm run lint
 ```
 
 ---
@@ -282,4 +315,4 @@ GEMINI_API_KEY=your-api-key-here
 - `infra/pulumi/components/` - Pulumi resource components
 
 ## IMPORTANT
-- when running python code or scripts, use the .venv at the root folder of the project. Use `uv` to run commands and script against that venv.
+- When running python code or scripts, use the virtual environment at `.venv` in the project root. Use `uv` to run commands and scripts against that venv (e.g., `uv pip install`, `uvicorn`, `pytest`).

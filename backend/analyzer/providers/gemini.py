@@ -145,11 +145,23 @@ Respond with JSON only:
             # Log raw response for debugging
             logger.debug(f"Raw Gemini response: {repr(raw_text)}")
 
+            # Log finish reason - if it's not STOP, response may be truncated
+            if response.candidates:
+                finish_reason = response.candidates[0].finish_reason
+                logger.info(f"Gemini finish_reason: {finish_reason}")
+                if str(finish_reason) != "STOP" and str(finish_reason) != "FinishReason.STOP":
+                    logger.warning(f"Response may be truncated! finish_reason={finish_reason}")
+
             # Parse JSON response
             return self._parse_response(raw_text, model=model)
 
         except json.JSONDecodeError as e:
+            raw_for_log = raw_text if "raw_text" in locals() else "N/A"
             logger.error(f"Failed to parse Gemini response as JSON: {e}")
+            logger.error(
+                f"Raw response (first 500 chars): {raw_for_log[:500] if raw_for_log else 'empty'}"
+            )
+            logger.error(f"Raw response length: {len(raw_for_log) if raw_for_log else 0}")
             return ComplexityResult(
                 time_complexity="Unknown",
                 space_complexity="Unknown",

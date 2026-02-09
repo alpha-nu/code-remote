@@ -181,6 +181,15 @@ class SyncWorkerComponent(pulumi.ComponentResource):
             opts=pulumi.ResourceOptions(parent=self),
         )
 
+        # Retrieve Gemini API Key secret value
+        gemini_api_key = pulumi.Output.secret(gemini_secret_arn).apply(
+            lambda arn: aws.secretsmanager.get_secret_version(
+                secret_id=arn
+            ).secret_string
+            if arn
+            else ""
+        )
+
         # Lambda Function
         self.function = aws.lambda_.Function(
             f"{name}-function",
@@ -199,17 +208,13 @@ class SyncWorkerComponent(pulumi.ComponentResource):
             ),
             environment=aws.lambda_.FunctionEnvironmentArgs(
                 variables={
-                    "NEO4J_SECRET_ARN": neo4j_secret_arn,
-                    "GEMINI_API_KEY_SECRET_ARN": gemini_secret_arn,
-                    "DATABASE_SECRET_ARN": database_secret_arn,
+                    "ENVIRONMENT": environment,
+                    "GEMINI_API_KEY": gemini_api_key,
                     "LLM_EMBEDDING_MODEL": llm_embedding_model,
-                },
-            ),
-            tracing_config=aws.lambda_.FunctionTracingConfigArgs(
-                mode="Active",
+                }
             ),
             tags=self.tags,
-            opts=pulumi.ResourceOptions(parent=self),
+            opts=pulumi.ResourceOptions(parent=self, depends_on=[self.log_group]),
         )
 
         # SQS Event Source Mapping

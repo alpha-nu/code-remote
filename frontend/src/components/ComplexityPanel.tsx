@@ -103,10 +103,7 @@ export function ComplexityPanel({ connectionState = 'disconnected' }: Complexity
     return (
       <div className="complexity-panel" ref={panelRef}>
         {renderHeader(
-          <span className="complexity-status analyzing">
-            <img src={spinner} className="spinner-logo small inline-spinner" alt="" />
-            {isAnalyzing ? 'Streaming...' : 'Rendering...'}
-          </span>
+          <span className="complexity-status analyzing">Analyzing...</span>
         )}
         <div className="complexity-content complexity-narrative streaming-content">
           <ReactMarkdown>{displayText || '\u200B'}</ReactMarkdown>

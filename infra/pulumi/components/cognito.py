@@ -15,6 +15,7 @@ class CognitoComponent(pulumi.ComponentResource):
         self,
         name: str,
         environment: str,
+        frontend_url: pulumi.Input[str] | None = None,
         tags: dict | None = None,
         opts: pulumi.ResourceOptions | None = None,
     ):
@@ -22,6 +23,7 @@ class CognitoComponent(pulumi.ComponentResource):
 
         self.tags = tags or {}
         self.environment = environment
+        self.frontend_url = frontend_url
 
         # User Pool
         self.user_pool = aws.cognito.UserPool(
@@ -70,6 +72,24 @@ class CognitoComponent(pulumi.ComponentResource):
             opts=pulumi.ResourceOptions(parent=self),
         )
 
+        # Build callback URLs list
+        # Always include localhost for local development
+        # The frontend_url is a Pulumi Output, so we need to handle it properly
+        def build_callback_urls(frontend_url: str | None) -> list[str]:
+            urls = ["http://localhost:5173"]
+            if frontend_url:
+                urls.append(frontend_url)
+            return urls
+
+        if self.frontend_url:
+            callback_urls = pulumi.Output.all(self.frontend_url).apply(
+                lambda args: build_callback_urls(args[0])
+            )
+            logout_urls = callback_urls  # Same URLs for both
+        else:
+            callback_urls = ["http://localhost:5173"]
+            logout_urls = ["http://localhost:5173"]
+
         # User Pool Client (for frontend)
         self.user_pool_client = aws.cognito.UserPoolClient(
             f"{name}-client",
@@ -82,6 +102,13 @@ class CognitoComponent(pulumi.ComponentResource):
                 "ALLOW_USER_SRP_AUTH",
                 "ALLOW_REFRESH_TOKEN_AUTH",
             ],
+            # OAuth configuration for hosted UI / redirect flows
+            allowed_oauth_flows=["code"],
+            allowed_oauth_flows_user_pool_client=True,
+            allowed_oauth_scopes=["email", "openid", "profile"],
+            callback_urls=callback_urls,
+            logout_urls=logout_urls,
+            supported_identity_providers=["COGNITO"],
             # Token validity
             access_token_validity=1,  # 1 hour
             id_token_validity=1,  # 1 hour

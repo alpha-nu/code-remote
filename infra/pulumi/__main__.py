@@ -94,11 +94,21 @@ secrets = SecretsComponent(
 )
 
 # =============================================================================
+# Frontend - S3 + CloudFront (before Cognito so we can set callback URLs)
+# =============================================================================
+frontend = FrontendComponent(
+    f"{environment}-frontend",
+    environment=environment,
+    tags=common_tags,
+)
+
+# =============================================================================
 # Cognito - Authentication
 # =============================================================================
 cognito = CognitoComponent(
     f"{environment}-cognito",
     environment=environment,
+    frontend_url=frontend.distribution.domain_name.apply(lambda d: f"https://{d}"),
     tags=common_tags,
 )
 
@@ -226,15 +236,6 @@ sync_worker = (
     )
     if neo4j
     else None
-)
-
-# =============================================================================
-# Frontend - S3 + CloudFront
-# =============================================================================
-frontend = FrontendComponent(
-    f"{environment}-frontend",
-    environment=environment,
-    tags=common_tags,
 )
 
 # =============================================================================

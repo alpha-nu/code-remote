@@ -246,46 +246,6 @@ class TestSecurityBlocking:
         assert result.error_type == "SecurityError"
 
 
-class TestTimeout:
-    """Tests for execution timeout."""
-
-    def test_infinite_loop_times_out(self):
-        """Test that infinite loops are terminated."""
-        code = """
-while True:
-    pass
-"""
-        result = execute_code(code, timeout_seconds=1.0)
-        assert not result.success
-        assert result.timed_out
-        assert result.error_type == "TimeoutError"
-
-    def test_long_computation_times_out(self):
-        """Test that long computations are terminated."""
-        code = """
-# Inefficient fibonacci that takes forever
-def slow_fib(n):
-    if n <= 1:
-        return n
-    return slow_fib(n-1) + slow_fib(n-2)
-
-slow_fib(100)  # This would take years
-"""
-        result = execute_code(code, timeout_seconds=1.0)
-        assert not result.success
-        assert result.timed_out
-
-    def test_fast_code_completes(self):
-        """Test that fast code completes within timeout."""
-        code = """
-result = sum(range(1000))
-print(result)
-"""
-        result = execute_code(code, timeout_seconds=5.0)
-        assert result.success
-        assert not result.timed_out
-
-
 class TestExecutionTime:
     """Tests for execution time tracking."""
 

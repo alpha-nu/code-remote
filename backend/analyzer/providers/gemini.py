@@ -102,6 +102,10 @@ Respond with JSON only:
             temperature = settings.resolved_llm_analysis_temperature
             max_output_tokens = settings.resolved_llm_analysis_max_tokens
 
+            logger.info(
+                f"Gemini request: model={model}, temp={temperature}, max_tokens={max_output_tokens}"
+            )
+
             # Generate response using the new SDK async API with tracing
             with llm_span(
                 "generate_content",

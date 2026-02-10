@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuthStore } from '../store/authStore';
 
-const WS_URL = import.meta.env.VITE_WEBSOCKET_URL || 'ws://localhost:8001';
+const WS_URL = import.meta.env.VITE_WEBSOCKET_URL || 'ws://localhost:8000/ws';
 
 /** WebSocket connection states */
 export type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'error';

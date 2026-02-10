@@ -138,6 +138,82 @@ export function Toolbar({ onConnectionStateChange, onConnectionIdChange }: Toolb
     return cleanup;
   }, [addMessageHandler, handleMessage]);
 
+  // --- Safety net: timeout for pending async execution ---
+  // If the WS message never arrives (connection lost, worker error, etc.),
+  // reset after the configured execution timeout + a generous buffer for
+  // SQS latency, Lambda cold-start, and WS delivery.
+  useEffect(() => {
+    if (!pendingJobId) return;
+
+    const bufferMs = 15_000; // 15 s on top of execution timeout
+    const timeoutMs = useEditorStore.getState().timeoutSeconds * 1000 + bufferMs;
+
+    const timer = setTimeout(() => {
+      if (pendingJobIdRef.current === pendingJobId) {
+        useEditorStore.getState().setIsExecuting(false);
+        useEditorStore.getState().setApiError(
+          'Execution result not received — the connection may have been lost. Please try again.'
+        );
+        setPendingJobId(null);
+      }
+    }, timeoutMs);
+
+    return () => clearTimeout(timer);
+  }, [pendingJobId]);
+
+  // --- Safety net: timeout for pending async analysis ---
+  useEffect(() => {
+    const store = useEditorStore.getState();
+    if (!store.isAnalyzing || !store.analysisJobId) return;
+
+    const jobId = store.analysisJobId;
+    const timer = setTimeout(() => {
+      const s = useEditorStore.getState();
+      if (s.isAnalyzing && s.analysisJobId === jobId) {
+        s.setIsAnalyzing(false);
+        s.setAnalysisJobId(null);
+        s.setApiError(
+          'Analysis result not received — the connection may have been lost. Please try again.'
+        );
+      }
+    }, 60_000); // 60 s — LLM streaming can be slow
+
+    return () => clearTimeout(timer);
+    // Re-run when analysisJobId changes (subscribed below)
+  });
+
+  // Subscribe to analysisJobId changes so the timeout effect above re-runs
+  useEditorStore((s) => s.analysisJobId);
+
+  // --- Detect WebSocket disconnect while jobs are pending ---
+  // When connectionId becomes null (WS closed), any in-flight async job
+  // will push its result to the now-dead connection.  Reset immediately
+  // rather than waiting for the full timeout.
+  useEffect(() => {
+    if (connectionId) return; // connected — nothing to do
+
+    // Execution pending?
+    if (pendingJobId) {
+      useEditorStore.getState().setIsExecuting(false);
+      useEditorStore.getState().setApiError(
+        'Connection lost while waiting for execution result. Please try again.'
+      );
+      // Defer setPendingJobId to avoid synchronous setState in effect body
+      const timer = setTimeout(() => setPendingJobId(null), 0);
+      return () => clearTimeout(timer);
+    }
+
+    // Analysis streaming?
+    const store = useEditorStore.getState();
+    if (store.isAnalyzing && store.analysisJobId) {
+      store.setIsAnalyzing(false);
+      store.setAnalysisJobId(null);
+      store.setApiError(
+        'Connection lost during analysis. Please try again.'
+      );
+    }
+  }, [connectionId, pendingJobId]);
+
   const [isLight, setIsLight] = useState(() =>
     typeof document !== 'undefined' && document.documentElement.classList.contains('light-theme'),
   );

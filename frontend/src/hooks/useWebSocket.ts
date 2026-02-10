@@ -246,6 +246,29 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
     }
   }, [isAuthenticated, connectionState]);
 
+  // --- Heartbeat: keep the connection alive and detect zombie sockets ---
+  // AWS API Gateway has a 10-minute idle timeout.  Sending a ping every
+  // 5 minutes resets that timer.  If the connection is silently dead,
+  // the send() will eventually trigger onerror/onclose so we reconnect.
+  useEffect(() => {
+    if (connectionState !== 'connected') return;
+
+    const HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+
+    const interval = setInterval(() => {
+      const ws = wsRef.current;
+      if (ws?.readyState === WebSocket.OPEN) {
+        try {
+          ws.send(JSON.stringify({ action: 'ping' }));
+        } catch {
+          // send() failed — socket is dead; browser will fire onclose
+        }
+      }
+    }, HEARTBEAT_INTERVAL_MS);
+
+    return () => clearInterval(interval);
+  }, [connectionState]);
+
   return {
     connectionState,
     connectionId,

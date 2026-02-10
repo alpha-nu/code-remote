@@ -108,17 +108,36 @@ VITE_API_URL=http://localhost:8000
 
 ## Database Migrations
 
-```bash
-cd backend
+### PostgreSQL (Alembic)
 
-# Run migrations
+```bash
+# From host (with venv active)
+cd backend
 alembic upgrade head
+
+# Or from the API container
+docker compose exec api alembic upgrade head
 
 # Create new migration
 alembic revision --autogenerate -m "description"
 
 # Rollback
 alembic downgrade -1
+```
+
+### Neo4j
+
+```bash
+# From the API container (recommended — env vars already set)
+docker compose exec api python -m neo4j_migrations
+
+# Check status
+docker compose exec api python -m neo4j_migrations status
+
+# From host (with venv active)
+cd backend
+NEO4J_URI=bolt://localhost:7687 NEO4J_PASSWORD=localdevpassword NEO4J_DATABASE=neo4j \
+  python -m neo4j_migrations
 ```
 
 ---
@@ -189,8 +208,11 @@ npm run type-check
 ### Reset Database
 ```bash
 docker compose down -v
-docker compose up -d postgres
-cd backend && alembic upgrade head
+docker compose up -d
+
+# Run all migrations
+docker compose exec api alembic upgrade head
+docker compose exec api python -m neo4j_migrations
 ```
 
 ### Rebuild Containers
@@ -263,6 +285,7 @@ flowchart LR
     Browser --> Frontend[Frontend :3000]
     Frontend --> API[API :8000]
     API --> DB[(PostgreSQL :5432)]
+    API --> Neo4j[(Neo4j :7687)]
     API --> Gemini[Gemini API]
 ```
 

@@ -46,6 +46,19 @@ class Neo4jMigrationRunner:
         """
         self.driver = driver
         self.database = database
+        self._ensure_constraint()
+
+    def _ensure_constraint(self) -> None:
+        """Ensure the Migration label and uniqueness constraint exist.
+
+        This avoids the 'label does not exist' warning on a fresh database
+        and guarantees migration IDs are unique.
+        """
+        with self.driver.session(database=self.database) as session:
+            session.run(
+                "CREATE CONSTRAINT migration_id_unique IF NOT EXISTS "
+                "FOR (m:Migration) REQUIRE m.id IS UNIQUE"
+            )
 
     def get_applied_migrations(self) -> set[str]:
         """Get list of already-applied migration IDs.

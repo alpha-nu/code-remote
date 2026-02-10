@@ -8,6 +8,8 @@
 
 import { useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
 import { useEditorStore } from '../store/editorStore';
 import { useTypewriter } from '../hooks';
 import type { ConnectionState } from '../hooks';
@@ -106,7 +108,12 @@ export function ComplexityPanel({ connectionState = 'disconnected' }: Complexity
           <span className="complexity-status analyzing">Analyzing...</span>
         )}
         <div className="complexity-content complexity-narrative streaming-content">
-          <ReactMarkdown>{displayText || '\u200B'}</ReactMarkdown>
+          <ReactMarkdown
+            remarkPlugins={[remarkMath]}
+            rehypePlugins={[rehypeKatex]}
+          >
+            {displayText || '\u200B'}
+          </ReactMarkdown>
           <span className="streaming-cursor" />
         </div>
       </div>
@@ -183,7 +190,12 @@ export function ComplexityPanel({ connectionState = 'disconnected' }: Complexity
         {/* Markdown narrative */}
         {analysis.narrative && (
           <div className="complexity-narrative">
-            <ReactMarkdown>{analysis.narrative}</ReactMarkdown>
+            <ReactMarkdown
+              remarkPlugins={[remarkMath]}
+              rehypePlugins={[rehypeKatex]}
+            >
+              {analysis.narrative}
+            </ReactMarkdown>
           </div>
         )}
 

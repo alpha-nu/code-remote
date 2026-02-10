@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
+import 'katex/dist/katex.min.css'; // Import katex CSS
 
 // Ensure theme preference is applied synchronously before React mounts so
 // components (like Monaco) read the correct theme on initial render.

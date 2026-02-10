@@ -62,7 +62,15 @@ export function Toolbar({ onConnectionStateChange, onConnectionIdChange }: Toolb
     // --- Execution results ---
     if (message.type === 'execution_result') {
       const resultMsg = message as unknown as ExecutionResultMessage;
-      if (resultMsg.job_id !== pendingJobIdRef.current) return;
+
+      // Gate on isExecuting to handle the race where the WS result arrives
+      // before the HTTP response that carries the job_id (same pattern as
+      // the analysis streaming handler below).
+      const store = useEditorStore.getState();
+      if (!store.isExecuting) return;
+
+      // If we already know our job_id, do a strict match
+      if (pendingJobIdRef.current && resultMsg.job_id !== pendingJobIdRef.current) return;
 
       const result: ExecutionResponse = {
         success: resultMsg.success,
@@ -228,7 +236,7 @@ export function Toolbar({ onConnectionStateChange, onConnectionIdChange }: Toolb
     };
   }, []);
 
-  const handleRun = async () => {
+  const handleRun = useCallback(async () => {
     if (isExecuting || !code.trim()) return;
 
     // Check auth (backend enforces this, but show friendly message)
@@ -253,6 +261,9 @@ export function Toolbar({ onConnectionStateChange, onConnectionIdChange }: Toolb
           connection_id: connectionId,
           timeout_seconds: timeoutSeconds,
         });
+        // Set ref immediately (synchronous) so the WS handler can match
+        // even before React re-renders from the setState below.
+        pendingJobIdRef.current = response.job_id;
         setPendingJobId(response.job_id);
         // Result will come via WebSocket
       } else {
@@ -277,23 +288,23 @@ export function Toolbar({ onConnectionStateChange, onConnectionIdChange }: Toolb
       }
       setIsExecuting(false);
     }
-  };
+  }, [code, isExecuting, isAuthenticated, connectionState, connectionId, timeoutSeconds, autoAnalyze, setIsExecuting, setResult, setApiError]);
 
   // analysis is provided by the store via `analyze()`
 
-  const handleKeyDown = (e: KeyboardEvent) => {
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
     // Ctrl/Cmd + Enter to run
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
       e.preventDefault();
       handleRun();
     }
-  };
+  }, [handleRun]);
 
   // Add global keyboard shortcut
-  if (typeof window !== 'undefined') {
-    window.removeEventListener('keydown', handleKeyDown);
+  useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
-  }
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleKeyDown]);
 
   return (
     <div className="toolbar">

@@ -1,5 +1,7 @@
 config:
   aws:region: us-east-1
+  code-remote:vpc_cidr: "10.0.0.0/16"
+  code-remote:az_count: "2"
   code-remote:llm:
     analysis:
       model: gemini-2.5-flash
@@ -13,6 +15,7 @@ config:
       thinking_budget: 0
     embedding:
       model: gemini-embedding-001
+  code-remote:sync_provider: api.services.sync.sqs.SQSSyncProvider
   code-remote:neo4j_uri: neo4j+ssc://3cbaec73.databases.neo4j.io:7687
   code-remote:neo4j_password:
     secure: AAABAMsLgnbkY3U2y5E2gNauVlmjZhUIRt358fHjghdmVVrzt2NmwgSSa+THtKoELwtpA5gZPPJXI9pnDtLOhFzXPncbm+1GlDjc

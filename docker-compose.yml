@@ -5,8 +5,10 @@
 #   - frontend: React app served via nginx on http://localhost:3000
 #   - api: FastAPI backend on http://localhost:8000
 #   - postgres: PostgreSQL database on localhost:5432
+#   - neo4j: Neo4j graph database on localhost:7687 (browser: localhost:7474)
 #
 # The frontend proxies /api requests to the backend.
+# Everything runs locally — no AWS services required (except Cognito auth).
 
 name: code-remote
 
@@ -25,6 +27,25 @@ services:
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U coderemote -d coderemote"]
       interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Neo4j graph database (semantic search)
+  neo4j:
+    image: neo4j:5-community
+    ports:
+      - "7474:7474"  # Browser UI
+      - "7687:7687"  # Bolt protocol
+    environment:
+      NEO4J_AUTH: neo4j/localdevpassword
+      NEO4J_PLUGINS: '["apoc"]'
+      NEO4J_dbms_security_procedures_unrestricted: apoc.*
+    volumes:
+      - neo4j_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7474"]
+      interval: 10s
       timeout: 5s
       retries: 5
     restart: unless-stopped
@@ -64,8 +85,16 @@ services:
       - CORS_ORIGINS=["http://localhost:3000","http://localhost:8000"]
       # Database URL for local development (uses postgres service)
       - DATABASE_URL=postgresql+asyncpg://coderemote:coderemote_dev@postgres:5432/coderemote
+      # Neo4j — direct sync (no SQS needed locally)
+      - SYNC_PROVIDER=api.services.sync.direct.DirectSyncProvider
+      - NEO4J_URI=bolt://neo4j:7687
+      - NEO4J_USERNAME=neo4j
+      - NEO4J_PASSWORD=localdevpassword
+      - NEO4J_DATABASE=neo4j
     depends_on:
       postgres:
+        condition: service_healthy
+      neo4j:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
@@ -73,30 +102,6 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
-    restart: unless-stopped
-
-  # =============================================================================
-  # Optional: Local Neo4j for development
-  # Use: docker compose --profile neo4j up
-  # Or use Neo4j AuraDB free tier instead (recommended)
-  # =============================================================================
-  neo4j:
-    image: neo4j:5-community
-    profiles: ["neo4j"]
-    ports:
-      - "7474:7474"  # Browser UI
-      - "7687:7687"  # Bolt protocol
-    environment:
-      NEO4J_AUTH: neo4j/localdevpassword
-      NEO4J_PLUGINS: '["apoc"]'
-      NEO4J_dbms_security_procedures_unrestricted: apoc.*
-    volumes:
-      - neo4j_data:/data
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:7474"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
     restart: unless-stopped
 
 volumes:

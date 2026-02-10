@@ -14,6 +14,7 @@ from botocore.exceptions import ClientError
 
 from api.schemas.sync import SnippetSyncEvent
 from api.services.sync.provider import SyncProvider
+from common.config import settings
 
 if TYPE_CHECKING:
     from mypy_boto3_sqs import SQSClient
@@ -34,14 +35,20 @@ class SQSSyncProvider(SyncProvider):
     which handles embedding generation and Neo4j updates.
     """
 
-    def __init__(self, queue_url: str, sqs_client: "SQSClient | None" = None):
+    def __init__(self, *, queue_url: str | None = None, sqs_client: "SQSClient | None" = None):
         """Initialize SQS sync provider.
 
         Args:
-            queue_url: URL of the SQS FIFO queue.
+            queue_url: URL of the SQS FIFO queue. Falls back to
+                ``settings.snippet_sync_queue_url`` when not provided.
             sqs_client: Optional SQS client (for testing). Uses default if not provided.
+
+        Raises:
+            RuntimeError: If no queue URL is available.
         """
-        self._queue_url = queue_url
+        self._queue_url = queue_url or settings.snippet_sync_queue_url
+        if not self._queue_url:
+            raise RuntimeError("SQSSyncProvider requires SNIPPET_SYNC_QUEUE_URL to be set")
         self._sqs = sqs_client or _get_sqs_client()
 
     async def _enqueue_event(self, event: SnippetSyncEvent) -> bool:

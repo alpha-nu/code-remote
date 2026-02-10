@@ -135,9 +135,12 @@ class Settings(BaseSettings):
     gemini_embedding_model: str = ""
 
     # Neo4j Sync Configuration
-    # SYNC_PROVIDER: "sqs" (production), "direct" (local dev), or "" (disabled)
-    sync_provider: str = ""  # Required: "sqs" or "direct"
-    snippet_sync_queue_url: str = ""  # Required when SYNC_PROVIDER=sqs
+    # SYNC_PROVIDER: Fully-qualified Python class name of the SyncProvider to use.
+    #   Production:  api.services.sync.sqs.SQSSyncProvider
+    #   Local dev:   api.services.sync.direct.DirectSyncProvider
+    #   Disabled:    "" (empty — semantic search won't be updated)
+    sync_provider: str = ""
+    snippet_sync_queue_url: str = ""  # Required when using SQSSyncProvider
 
     # AWS Cognito Authentication
     cognito_user_pool_id: str = ""

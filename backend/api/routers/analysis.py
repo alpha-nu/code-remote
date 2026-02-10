@@ -24,7 +24,7 @@ from api.schemas.analysis import (
 from api.services.analyzer_service import AnalyzerService, get_analyzer_service
 from api.services.database import get_db, get_session_factory
 from api.services.snippet_service import SnippetService
-from api.services.sync_service import SyncService, get_sync_service
+from api.services.sync import SyncProvider, get_sync_provider
 from api.services.user_service import UserService
 
 logger = logging.getLogger(__name__)
@@ -43,7 +43,7 @@ async def analyze_code(
     user: CognitoUser = Depends(get_current_user),
     analyzer: AnalyzerService = Depends(get_analyzer_service),
     db: AsyncSession = Depends(get_db),
-    sync_service: SyncService | None = Depends(get_sync_service),
+    sync_provider: SyncProvider | None = Depends(get_sync_provider),
 ) -> AnalyzeResponse:
     """Analyze Python code complexity using LLM (non-streaming).
 
@@ -53,14 +53,41 @@ async def analyze_code(
 
     # Persist complexity to snippet if provided and analysis succeeded
     if request.snippet_id and result.success:
-        await _persist_complexity(
-            db=db,
-            sync_service=sync_service,
-            user=user,
-            snippet_id=request.snippet_id,
-            time_complexity=result.time_complexity,
-            space_complexity=result.space_complexity,
-        )
+        try:
+            # Get database user
+            user_service = UserService(db)
+            db_user = await user_service.get_or_create_from_cognito(
+                cognito_sub=user.id,
+                email=user.email or "",
+                username=user.username,
+            )
+
+            # Update snippet with complexity results
+            snippet_service = SnippetService(db)
+            updated = await snippet_service.update(
+                snippet_id=request.snippet_id,
+                user_id=db_user.id,
+                time_complexity=result.time_complexity,
+                space_complexity=result.space_complexity,
+            )
+            if updated:
+                logger.info(
+                    f"Persisted complexity to snippet {request.snippet_id}: "
+                    f"time={result.time_complexity}, space={result.space_complexity}"
+                )
+                # Sync to Neo4j (if configured)
+                if sync_provider:
+                    await sync_provider.sync_analyzed(
+                        snippet_id=str(request.snippet_id),
+                        user_id=str(db_user.id),
+                    )
+            else:
+                logger.warning(
+                    f"Failed to update snippet {request.snippet_id} - not found or not owned"
+                )
+        except Exception as e:
+            # Don't fail the analysis if persistence fails
+            logger.error(f"Failed to persist complexity to snippet: {e}")
 
     return result
 

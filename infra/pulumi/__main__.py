@@ -55,7 +55,10 @@ llm_cypher_max_tokens = str(llm_cypher.get("max_tokens", 500))
 llm_cypher_thinking_budget = str(llm_cypher.get("thinking_budget", -1))  # -1 = dynamic
 llm_embedding_model = llm_embedding.get("model", "gemini-embedding-001")
 
-# Neo4j Configuration
+# Sync provider & Neo4j Configuration
+sync_provider = (
+    config.get("sync_provider") or ""
+)  # Optional: e.g., api.services.sync.sqs.SQSSyncProvider
 neo4j_uri = config.get("neo4j_uri") or ""  # Optional: Neo4j AuraDB URI
 neo4j_password = config.get_secret(
     "neo4j_password"
@@ -197,6 +200,8 @@ api = ServerlessAPIComponent(
         "DEBUG": "false" if environment == "prod" else "true",
         "CORS_ORIGINS": '["*"]',  # API Gateway handles CORS
         "DATABASE_SECRET_ARN": database.connection_secret.arn,
+        # Sync provider class (IoC — fully-qualified Python class name)
+        "SYNC_PROVIDER": sync_provider,
         # Neo4j sync queue (if configured)
         "SNIPPET_SYNC_QUEUE_URL": neo4j.sync_queue.url if neo4j else "",
         "NEO4J_SECRET_ARN": neo4j.credentials_secret.arn if neo4j else "",

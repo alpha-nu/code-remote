@@ -13,3 +13,5 @@ config:
       max_tokens: 500
     embedding:
       model: gemini-embedding-001
+  code-remote:sync_provider: api.services.sync.sqs.SQSSyncProvider
+  code-remote:neo4j_uri: ""

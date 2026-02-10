@@ -83,19 +83,29 @@ export function Toolbar({ onConnectionStateChange, onConnectionIdChange }: Toolb
     }
 
     // --- Analysis streaming ---
+    // Gate on isAnalyzing rather than analysisJobId to avoid a race condition:
+    // In Lambda/Mangum, BackgroundTasks block the HTTP response, so WS
+    // messages arrive *before* the HTTP response that carries the job_id.
+    // isAnalyzing is set synchronously before the HTTP call, so it's safe.
     const store = useEditorStore.getState();
-    const currentJobId = store.analysisJobId;
+    if (!store.isAnalyzing) return;
+
+    // Lazily capture the job_id from the first analysis message when the
+    // HTTP response hasn't arrived yet (analysisJobId is still null).
+    const msgJobId = message.job_id as string | undefined;
+    if (msgJobId && !store.analysisJobId) {
+      store.setAnalysisJobId(msgJobId);
+    }
+
+    // If we already have a job_id, validate it matches
+    if (store.analysisJobId && msgJobId !== store.analysisJobId) return;
 
     if (message.type === 'analysis_stream_chunk') {
-      const jobId = message.job_id as string;
-      if (jobId !== currentJobId) return;
       store.appendAnalysisStreamChunk(message.chunk as string);
       return;
     }
 
     if (message.type === 'analysis_stream_complete') {
-      const jobId = message.job_id as string;
-      if (jobId !== currentJobId) return;
       const result = (message as unknown as { result: AnalyzeResponse }).result;
       store.setAnalysis(result);
       store.setIsAnalyzing(false);
@@ -106,8 +116,6 @@ export function Toolbar({ onConnectionStateChange, onConnectionIdChange }: Toolb
     }
 
     if (message.type === 'analysis_stream_error') {
-      const jobId = message.job_id as string;
-      if (jobId !== currentJobId) return;
       store.setIsAnalyzing(false);
       store.setAnalysisJobId(null);
       store.setApiError(message.error as string);

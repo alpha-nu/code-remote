@@ -103,7 +103,7 @@ async def analyze_code_async(
     background_tasks: BackgroundTasks,
     user: CognitoUser = Depends(get_current_user),
     analyzer: AnalyzerService = Depends(get_analyzer_service),
-    sync_service: SyncService | None = Depends(get_sync_service),
+    sync_provider: SyncProvider | None = Depends(get_sync_provider),
 ) -> AnalyzeJobSubmittedResponse:
     """Submit code for streaming complexity analysis via WebSocket.
 
@@ -120,7 +120,7 @@ async def analyze_code_async(
         snippet_id=request.snippet_id,
         user=user,
         analyzer=analyzer,
-        sync_service=sync_service,
+        sync_provider=sync_provider,
     )
 
     return AnalyzeJobSubmittedResponse(job_id=job_id, status="streaming")
@@ -133,7 +133,7 @@ async def _stream_analysis(
     snippet_id: "uuid.UUID | None",
     user: CognitoUser,
     analyzer: AnalyzerService,
-    sync_service: SyncService | None,
+    sync_provider: SyncProvider | None,
 ) -> None:
     """Stream analysis chunks via WebSocket, then persist results."""
     logger.info(
@@ -197,7 +197,7 @@ async def _stream_analysis(
                     async with session_factory() as db:
                         await _persist_complexity(
                             db=db,
-                            sync_service=sync_service,
+                            sync_provider=sync_provider,
                             user=user,
                             snippet_id=snippet_id,
                             time_complexity=final_result.time_complexity,
@@ -252,13 +252,13 @@ async def analysis_status(
 async def _persist_complexity(
     *,
     db: AsyncSession,
-    sync_service: SyncService | None,
+    sync_provider: SyncProvider | None,
     user: CognitoUser,
     snippet_id: "uuid.UUID",
     time_complexity: str,
     space_complexity: str,
 ) -> None:
-    """Persist complexity results to a snippet and enqueue Neo4j sync."""
+    """Persist complexity results to a snippet and sync to Neo4j."""
     try:
         user_service = UserService(db)
         db_user = await user_service.get_or_create_from_cognito(
@@ -279,8 +279,8 @@ async def _persist_complexity(
                 f"Persisted complexity to snippet {snippet_id}: "
                 f"time={time_complexity}, space={space_complexity}"
             )
-            if sync_service:
-                await sync_service.enqueue_analyzed(
+            if sync_provider:
+                await sync_provider.sync_analyzed(
                     snippet_id=str(snippet_id),
                     user_id=str(db_user.id),
                 )

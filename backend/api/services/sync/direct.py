@@ -25,7 +25,6 @@ class DirectSyncProvider(SyncProvider):
         from api.handlers.sync_worker import process_analyzed_event
         from api.services.embedding_service import EmbeddingService
         from api.services.neo4j_service import Neo4jService, get_neo4j_driver
-        from common.config import settings
 
         event = SnippetSyncEvent.analyzed(
             snippet_id=UUID(snippet_id),
@@ -42,7 +41,7 @@ class DirectSyncProvider(SyncProvider):
                 return False
 
             neo4j_service = Neo4jService(driver)
-            embedding_service = EmbeddingService(model=settings.gemini_embedding_model)
+            embedding_service = EmbeddingService()
 
             result = process_analyzed_event(event, neo4j_service, embedding_service)
 
@@ -57,6 +56,7 @@ class DirectSyncProvider(SyncProvider):
             logger.error(
                 "Direct sync failed",
                 extra={"snippet_id": snippet_id, "error": str(e)},
+                exc_info=True,
             )
             return False
 
@@ -93,5 +93,6 @@ class DirectSyncProvider(SyncProvider):
             logger.error(
                 "Direct sync failed",
                 extra={"snippet_id": snippet_id, "error": str(e)},
+                exc_info=True,
             )
             return False

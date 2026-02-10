@@ -90,7 +90,7 @@ export function SnippetsPanel() {
 
   const deleteSnippet = useDeleteSnippet();
   const updateSnippet = useUpdateSnippet();
-  const { code, setCode, setResult, setAnalysis, setLastAnalyzedCode, setHasRun } = useEditorStore();
+  const { code, setCode, setResult, setAnalysis, setLastAnalyzedCode, setHasRun, cancelAnalysis } = useEditorStore();
   const {
     loadedSnippetId,
     loadedSnippetCode,
@@ -172,6 +172,7 @@ export function SnippetsPanel() {
     try {
       // Fetch full snippet (including code)
       const snippet = await snippetsApi.get(snippetId);
+      cancelAnalysis(); // Cancel any in-progress analysis streaming
       setCode(snippet.code);
       setResult(null); // Clear output when loading snippet
       setAnalysis(null); // Clear analysis when loading snippet

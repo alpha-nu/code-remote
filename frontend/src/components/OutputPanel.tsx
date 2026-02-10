@@ -22,6 +22,7 @@ export function OutputPanel({ connectionState = 'disconnected', connectionId = n
     isAnalyzing,
     analysisStreamText,
     analyze,
+    cancelAnalysis,
     setAutoAnalyze,
     timeoutSeconds,
     setTimeoutSeconds,
@@ -140,18 +141,22 @@ export function OutputPanel({ connectionState = 'disconnected', connectionId = n
         <div className="output-tools-right">
           {/* Show explicit analyze button only after code has been executed once and when autoAnalyze is off */}
           {!autoAnalyze && hasRun && (
-            <button className="analyze-button" onClick={() => analyze(connectionId)} disabled={analysisBusy}>
-              {analysisBusy ? (
-                'Analyzing...'
-              ) : (
-                <>
-                  <svg className="btn-icon small" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-                  </svg>
-                  <span>Analyze Code</span>
-                </>
-              )}
-            </button>
+            analysisBusy ? (
+              <button className="analyze-button cancel" onClick={cancelAnalysis}>
+                <svg className="btn-icon small" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+                <span>Cancel</span>
+              </button>
+            ) : (
+              <button className="analyze-button" onClick={() => analyze(connectionId)}>
+                <svg className="btn-icon small" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+                </svg>
+                <span>Analyze Code</span>
+              </button>
+            )
           )}
         </div>
       </div>

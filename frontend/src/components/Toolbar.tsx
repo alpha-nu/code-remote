@@ -237,6 +237,9 @@ export function Toolbar({ onConnectionStateChange, onConnectionIdChange }: Toolb
       return;
     }
 
+    // Cancel any in-progress analysis before starting new execution
+    useEditorStore.getState().cancelAnalysis();
+
     setIsExecuting(true);
     setResult(null);
     setApiError(null);

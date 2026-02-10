@@ -71,6 +71,8 @@ interface EditorState {
 
   // Convenience: analyze current code (calls API)
   analyze: (connectionId?: string | null) => Promise<void>;
+  /** Cancel an in-progress analysis (streaming or sync). */
+  cancelAnalysis: () => void;
   autoAnalyze: boolean;
   setAutoAnalyze: (autoAnalyze: boolean) => void;
 
@@ -161,6 +163,9 @@ export const useEditorStore = create<EditorState>((set) => ({
     }
   },
 
+  cancelAnalysis: () =>
+    set({ isAnalyzing: false, analysisJobId: null, analysisStreamText: '' }),
+
   autoAnalyze: false,
   setAutoAnalyze: (autoAnalyze) => set({ autoAnalyze }),
 
@@ -179,9 +184,11 @@ export const useEditorStore = create<EditorState>((set) => ({
       analysis: null,
       analysisStreamText: '',
       analysisJobId: null,
+      lastAnalyzedCode: null,
       autoAnalyze: false,
       apiError: null,
       timeoutSeconds: 30,
+      hasRun: false,
     }),
 }));
 

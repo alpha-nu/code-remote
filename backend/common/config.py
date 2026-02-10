@@ -131,9 +131,6 @@ class Settings(BaseSettings):
     neo4j_database: str = ""
     neo4j_secret_arn: str = ""  # AWS Secrets Manager ARN for Neo4j credentials
 
-    # Embedding (Gemini embedding model)
-    gemini_embedding_model: str = ""
-
     # Neo4j Sync Configuration
     # SYNC_PROVIDER: Fully-qualified Python class name of the SyncProvider to use.
     #   Production:  api.services.sync.sqs.SQSSyncProvider

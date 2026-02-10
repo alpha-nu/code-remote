@@ -134,7 +134,7 @@ print("  ✓ Gemini API key")
 # Set environment variables so settings module uses AWS values
 os.environ['DATABASE_URL'] = DATABASE_URL
 os.environ['GEMINI_API_KEY'] = GEMINI_API_KEY
-os.environ['GEMINI_EMBEDDING_MODEL'] = 'gemini-embedding-001'
+os.environ['LLM_EMBEDDING_MODEL'] = 'gemini-embedding-001'
 os.environ['NEO4J_URI'] = neo4j_secret['uri']
 os.environ['NEO4J_USERNAME'] = neo4j_secret['username']
 os.environ['NEO4J_PASSWORD'] = neo4j_secret['password']

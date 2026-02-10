@@ -80,6 +80,8 @@ async def analyze_code(
                     await sync_provider.sync_analyzed(
                         snippet_id=str(request.snippet_id),
                         user_id=str(db_user.id),
+                        time_complexity=result.time_complexity,
+                        space_complexity=result.space_complexity,
                     )
             else:
                 logger.warning(
@@ -283,6 +285,8 @@ async def _persist_complexity(
                 await sync_provider.sync_analyzed(
                     snippet_id=str(snippet_id),
                     user_id=str(db_user.id),
+                    time_complexity=time_complexity,
+                    space_complexity=space_complexity,
                 )
         else:
             logger.warning(f"Failed to update snippet {snippet_id} - not found or not owned")

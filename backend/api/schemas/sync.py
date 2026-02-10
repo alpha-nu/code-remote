@@ -26,6 +26,8 @@ class SnippetSyncEvent(BaseModel):
     snippet_id: UUID = Field(description="UUID of the snippet")
     user_id: UUID = Field(description="UUID of the snippet owner")
     timestamp: datetime = Field(default_factory=_utc_now, description="When the event occurred")
+    time_complexity: str | None = None
+    space_complexity: str | None = None
 
     def to_sqs_message(self) -> dict:
         """Convert to SQS message format.
@@ -40,12 +42,20 @@ class SnippetSyncEvent(BaseModel):
         }
 
     @classmethod
-    def analyzed(cls, snippet_id: UUID, user_id: UUID) -> "SnippetSyncEvent":
+    def analyzed(
+        cls,
+        snippet_id: UUID,
+        user_id: UUID,
+        time_complexity: str | None = None,
+        space_complexity: str | None = None,
+    ) -> "SnippetSyncEvent":
         """Create an analyzed event.
 
         Args:
             snippet_id: UUID of the snippet.
             user_id: UUID of the owner.
+            time_complexity: Optional; Time complexity of the snippet.
+            space_complexity: Optional; Space complexity of the snippet.
 
         Returns:
             SnippetSyncEvent instance.
@@ -54,6 +64,8 @@ class SnippetSyncEvent(BaseModel):
             event_type="snippet.analyzed",
             snippet_id=snippet_id,
             user_id=user_id,
+            time_complexity=time_complexity,
+            space_complexity=space_complexity,
         )
 
     @classmethod

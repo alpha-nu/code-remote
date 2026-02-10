@@ -88,11 +88,19 @@ class SQSSyncProvider(SyncProvider):
             )
             return False
 
-    async def sync_analyzed(self, snippet_id: str, user_id: str) -> bool:
+    async def sync_analyzed(
+        self,
+        snippet_id: str,
+        user_id: str,
+        time_complexity: str | None = None,
+        space_complexity: str | None = None,
+    ) -> bool:
         """Enqueue an analyzed event to SQS."""
         event = SnippetSyncEvent.analyzed(
             snippet_id=UUID(snippet_id),
             user_id=UUID(user_id),
+            time_complexity=time_complexity,
+            space_complexity=space_complexity,
         )
         return await self._enqueue_event(event)
 

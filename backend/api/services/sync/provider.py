@@ -28,7 +28,13 @@ class SyncProvider(ABC):
     """
 
     @abstractmethod
-    async def sync_analyzed(self, snippet_id: str, user_id: str) -> bool:
+    async def sync_analyzed(
+        self,
+        snippet_id: str,
+        user_id: str,
+        time_complexity: str | None = None,
+        space_complexity: str | None = None,
+    ) -> bool:
         """Sync a snippet that has been analyzed.
 
         Generates embeddings and upserts the snippet to Neo4j.

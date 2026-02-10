@@ -20,7 +20,13 @@ class DirectSyncProvider(SyncProvider):
     but executes it inline instead of via a queue.
     """
 
-    async def sync_analyzed(self, snippet_id: str, user_id: str) -> bool:
+    async def sync_analyzed(
+        self,
+        snippet_id: str,
+        user_id: str,
+        time_complexity: str | None = None,
+        space_complexity: str | None = None,
+    ) -> bool:
         """Sync an analyzed snippet directly to Neo4j."""
         from api.handlers.sync_worker import process_analyzed_event
         from api.services.embedding_service import EmbeddingService
@@ -29,6 +35,8 @@ class DirectSyncProvider(SyncProvider):
         event = SnippetSyncEvent.analyzed(
             snippet_id=UUID(snippet_id),
             user_id=UUID(user_id),
+            time_complexity=time_complexity,
+            space_complexity=space_complexity,
         )
 
         try:

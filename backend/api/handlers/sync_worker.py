@@ -60,12 +60,16 @@ def process_analyzed_event(
 
         snippet, user = row
 
+        # Determine complexity, preferring event data over DB data (to avoid race conditions)
+        time_complexity_to_sync = event.time_complexity or snippet.time_complexity
+        space_complexity_to_sync = event.space_complexity or snippet.space_complexity
+
         # Build embedding input from snippet
         embedding_input = embedding_service.build_snippet_embedding_input(
             title=snippet.title,
             description=snippet.description,
-            time_complexity=snippet.time_complexity,
-            space_complexity=snippet.space_complexity,
+            time_complexity=time_complexity_to_sync,
+            space_complexity=space_complexity_to_sync,
             code=snippet.code,
         )
 
@@ -85,8 +89,8 @@ def process_analyzed_event(
             title=snippet.title,
             code=snippet.code,
             language=snippet.language,
-            time_complexity=snippet.time_complexity or "O(?)",
-            space_complexity=snippet.space_complexity or "O(?)",
+            time_complexity=time_complexity_to_sync or "O(?)",
+            space_complexity=space_complexity_to_sync or "O(?)",
             embedding=embedding,
             description=snippet.description,
         )

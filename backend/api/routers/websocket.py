@@ -65,6 +65,8 @@ async def push_to_connection(connection_id: str, message: dict) -> bool:
     Returns:
         True if message was sent, False if connection not found or gone
     """
+    msg_type = message.get("type", "?")
+
     # --- Production path: use API Gateway Management API ---
     if settings.websocket_endpoint:
         return await _push_via_apigw(connection_id, message)
@@ -74,9 +76,12 @@ async def push_to_connection(connection_id: str, message: dict) -> bool:
     if ws:
         try:
             await ws.send_json(message)
+            logger.debug("Pushed %s to %s (local)", msg_type, connection_id[:12])
             return True
         except Exception:
             _connections.pop(connection_id, None)
+
+    logger.warning("No local WS connection for %s", connection_id[:12])
     return False
 
 
@@ -85,17 +90,21 @@ async def _push_via_apigw(connection_id: str, message: dict) -> bool:
     from common.websocket import get_apigw_management_client
     from common.websocket import post_to_connection as _post
 
+    msg_type = message.get("type", "?")
+
     try:
         client = get_apigw_management_client(settings.websocket_endpoint)
 
-        # boto3 is synchronous — run in executor to avoid blocking the event loop
-        loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(
-            None,
-            lambda: _post(client, connection_id, message),
-        )
-    except Exception as e:
-        logger.error(f"Failed to push to connection {connection_id}: {e}")
+        # boto3 is synchronous — run in a thread to avoid blocking the loop
+        result = await asyncio.to_thread(_post, client, connection_id, message)
+
+        if result:
+            logger.info("Pushed %s to %s", msg_type, connection_id[:12])
+        else:
+            logger.warning("Push %s to %s returned gone", msg_type, connection_id[:12])
+        return result
+    except Exception:
+        logger.exception("Failed to push %s to %s", msg_type, connection_id[:12])
         return False
 
 

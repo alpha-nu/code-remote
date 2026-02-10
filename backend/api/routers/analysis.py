@@ -109,6 +109,13 @@ async def _stream_analysis(
     sync_service: SyncService | None,
 ) -> None:
     """Stream analysis chunks via WebSocket, then persist results."""
+    logger.info(
+        "Starting analysis stream job=%s conn=%s code_len=%d",
+        job_id[:8],
+        connection_id[:12],
+        len(code),
+    )
+
     # Small delay to ensure the HTTP response is sent first
     await asyncio.sleep(0.1)
 
@@ -123,9 +130,11 @@ async def _stream_analysis(
 
     try:
         final_result: AnalyzeResponse | None = None
+        chunk_count = 0
 
         async for item in analyzer.analyze_stream(code):
             if isinstance(item, str):
+                chunk_count += 1
                 await push_to_connection(
                     connection_id,
                     {
@@ -146,6 +155,12 @@ async def _stream_analysis(
                     "job_id": job_id,
                     "result": final_result.model_dump(),
                 },
+            )
+            logger.info(
+                "Analysis stream complete job=%s chunks=%d success=%s",
+                job_id[:8],
+                chunk_count,
+                final_result.success,
             )
 
             # Persist to snippet (using a fresh DB session for the background task)

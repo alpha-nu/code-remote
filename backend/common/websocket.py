@@ -73,6 +73,7 @@ def post_to_connection(client, connection_id: str, data: dict) -> bool:
             ConnectionId=connection_id,
             Data=json.dumps(data).encode("utf-8"),
         )
+        logger.debug("post_to_connection OK for %s", connection_id[:12])
         return True
     except ClientError as e:
         error_code = e.response.get("Error", {}).get("Code", "")

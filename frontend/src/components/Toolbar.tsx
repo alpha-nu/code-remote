@@ -5,7 +5,7 @@
 import { useEditorStore, updateSnippetCachesAfterAnalysis } from '../store/editorStore';
 import { executeCode, executeCodeAsync } from '../api/client';
 import { UserMenu } from './UserMenu';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { useWebSocket, type ExecutionResultMessage, type WebSocketMessage, type ConnectionState } from '../hooks';
 import type { ExecutionResponse, AnalyzeResponse } from '../types/execution';
@@ -45,15 +45,24 @@ export function Toolbar({ onConnectionStateChange, onConnectionIdChange }: Toolb
     onConnectionIdChange?.(connectionId);
   }, [connectionId, onConnectionIdChange]);
 
-  // Track pending job for async execution
+  // Track pending job for async execution — use a ref so the WS message
+  // handler always reads the current value without triggering re-registration.
   const [pendingJobId, setPendingJobId] = useState<string | null>(null);
+  const pendingJobIdRef = useRef<string | null>(null);
+  const connectionIdRef = useRef<string | null>(connectionId);
 
-  // Handle incoming execution results via WebSocket
+  // Keep refs in sync with state
+  useEffect(() => { pendingJobIdRef.current = pendingJobId; }, [pendingJobId]);
+  useEffect(() => { connectionIdRef.current = connectionId; }, [connectionId]);
+
+  // Handle incoming WebSocket messages.
+  // The callback is intentionally stable (no closure deps that change per
+  // render) — it reads mutable values via refs / Zustand getState().
   const handleMessage = useCallback((message: WebSocketMessage) => {
     // --- Execution results ---
     if (message.type === 'execution_result') {
       const resultMsg = message as unknown as ExecutionResultMessage;
-      if (resultMsg.job_id !== pendingJobId) return;
+      if (resultMsg.job_id !== pendingJobIdRef.current) return;
 
       const result: ExecutionResponse = {
         success: resultMsg.success,
@@ -71,13 +80,13 @@ export function Toolbar({ onConnectionStateChange, onConnectionIdChange }: Toolb
         })),
       };
 
-      setResult(result);
-      setIsExecuting(false);
+      useEditorStore.getState().setResult(result);
+      useEditorStore.getState().setIsExecuting(false);
       setPendingJobId(null);
 
       // Auto-analyze after successful execution
-      if (autoAnalyze && result.success) {
-        useEditorStore.getState().analyze(connectionId);
+      if (useEditorStore.getState().autoAnalyze && result.success) {
+        useEditorStore.getState().analyze(connectionIdRef.current);
       }
       return;
     }
@@ -121,9 +130,9 @@ export function Toolbar({ onConnectionStateChange, onConnectionIdChange }: Toolb
       store.setApiError(message.error as string);
       return;
     }
-  }, [pendingJobId, setResult, setIsExecuting, autoAnalyze, connectionId]);
+  }, []);
 
-  // Register message handler
+  // Register message handler — stable callback means this only runs once
   useEffect(() => {
     const cleanup = addMessageHandler(handleMessage);
     return cleanup;

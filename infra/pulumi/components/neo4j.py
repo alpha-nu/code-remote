@@ -17,8 +17,6 @@ class Neo4jComponent(pulumi.ComponentResource):
         self,
         name: str,
         environment: str,
-        neo4j_uri: str,
-        neo4j_password: pulumi.Output[str],
         tags: dict | None = None,
         opts: pulumi.ResourceOptions | None = None,
     ):
@@ -27,8 +25,6 @@ class Neo4jComponent(pulumi.ComponentResource):
         Args:
             name: Resource name prefix.
             environment: Deployment environment (dev/staging/prod).
-            neo4j_uri: Neo4j AuraDB connection URI.
-            neo4j_password: Neo4j password (as Pulumi Output for secrets).
             tags: Common resource tags.
             opts: Pulumi resource options.
         """
@@ -36,29 +32,11 @@ class Neo4jComponent(pulumi.ComponentResource):
 
         self.tags = tags or {}
 
-        # Store Neo4j credentials in Secrets Manager
         self.credentials_secret = aws.secretsmanager.Secret(
             f"{name}-credentials",
             name=f"code-remote-{environment}-neo4j-credentials",
             description=f"Neo4j AuraDB credentials for {environment}",
             tags=self.tags,
-            opts=pulumi.ResourceOptions(parent=self),
-        )
-
-        # Create secret version with credentials
-        self.credentials_version = aws.secretsmanager.SecretVersion(
-            f"{name}-credentials-version",
-            secret_id=self.credentials_secret.id,
-            secret_string=neo4j_password.apply(
-                lambda password: json.dumps(
-                    {
-                        "uri": neo4j_uri,
-                        "username": "neo4j",
-                        "password": password,
-                        "database": "neo4j",
-                    }
-                )
-            ),
             opts=pulumi.ResourceOptions(parent=self),
         )
 

@@ -60,9 +60,6 @@ sync_provider = (
     config.get("sync_provider") or ""
 )  # Optional: e.g., api.services.sync.sqs.SQSSyncProvider
 neo4j_uri = config.get("neo4j_uri") or ""  # Optional: Neo4j AuraDB URI
-neo4j_password = config.get_secret(
-    "neo4j_password"
-)  # Optional: Neo4j password (secret)
 
 # Common tags for all resources
 common_tags = {
@@ -146,11 +143,9 @@ neo4j = (
     Neo4jComponent(
         f"{environment}-neo4j",
         environment=environment,
-        neo4j_uri=neo4j_uri,
-        neo4j_password=neo4j_password or pulumi.Output.from_input(""),
         tags=common_tags,
     )
-    if neo4j_uri and neo4j_password
+    if neo4j_uri
     else None
 )
 

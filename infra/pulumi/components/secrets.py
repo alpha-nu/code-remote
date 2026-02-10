@@ -24,22 +24,15 @@ class SecretsComponent(pulumi.ComponentResource):
         self.tags = tags or {}
         self.environment = environment
 
-        # Gemini API Key secret
-        # The actual value is set manually or via CI/CD after creation
+        # Gemini API Key secret — shell only, value populated manually or via CI/CD:
+        #   aws secretsmanager put-secret-value \
+        #       --secret-id code-remote/{env}/gemini-api-key \
+        #       --secret-string '<your-api-key>'
         self.gemini_api_key = aws.secretsmanager.Secret(
             f"{name}-gemini-api-key",
             name=f"code-remote/{environment}/gemini-api-key",
             description="Google Gemini API key for LLM-powered code analysis",
             tags={**self.tags, "Name": f"{name}-gemini-api-key"},
-            opts=pulumi.ResourceOptions(parent=self),
-        )
-
-        # Placeholder version (actual value set separately)
-        # This creates the secret with a placeholder that should be updated
-        aws.secretsmanager.SecretVersion(
-            f"{name}-gemini-api-key-version",
-            secret_id=self.gemini_api_key.id,
-            secret_string=pulumi.Config().get_secret("gemini_api_key") or "PLACEHOLDER",
             opts=pulumi.ResourceOptions(parent=self),
         )
 

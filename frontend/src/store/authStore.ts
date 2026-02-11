@@ -14,6 +14,9 @@ import {
   type SignUpInput,
   type ConfirmSignUpInput,
 } from 'aws-amplify/auth';
+import { useEditorStore } from './editorStore';
+import { useSnippetsStore } from './snippetsStore';
+import { queryClient } from '../utils/queryClient';
 
 export interface AuthUser {
   id: string;
@@ -86,6 +89,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (result.isSignedIn) {
         // Fetch user details after successful sign-in
         await get().initialize();
+        // Reset editor state to clear any unauthenticated errors
+        useEditorStore.getState().reset();
         return true;
       } else {
         set({
@@ -116,6 +121,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isAuthenticated: false,
         isLoading: false,
       });
+      // Also reset editor and snippets stores
+      useEditorStore.getState().reset();
+      useSnippetsStore.getState().clearLoadedSnippet();
+      // Clear snippets from React Query cache
+      queryClient.removeQueries({ queryKey: ['snippets'] });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Logout failed';
       set({

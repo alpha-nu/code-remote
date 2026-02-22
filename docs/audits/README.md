@@ -25,3 +25,4 @@ Audits should be performed:
 | Date | Environment | Status | Notes |
 |------|-------------|--------|-------|
 | 2026-02-06 | dev | ⚠️ Issues Found | 2 orphaned resources identified and cleaned |
+| 2026-02-22 | dev | ✅ Remediated | 2 orphaned EIPs released, log retention set, Lambda optimized, NAT evaluated |

@@ -168,7 +168,7 @@ class WorkerComponent(pulumi.ComponentResource):
         self.log_group = aws.cloudwatch.LogGroup(
             f"{name}-logs",
             name=f"/aws/lambda/{name}-func",
-            retention_in_days=14,
+            retention_in_days=30,
             tags=self.tags,
             opts=pulumi.ResourceOptions(parent=self),
         )

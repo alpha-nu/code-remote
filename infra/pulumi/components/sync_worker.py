@@ -181,6 +181,15 @@ class SyncWorkerComponent(pulumi.ComponentResource):
             opts=pulumi.ResourceOptions(parent=self),
         )
 
+        # CloudWatch Logs
+        self.log_group = aws.cloudwatch.LogGroup(
+            f"{name}-logs",
+            name=f"/aws/lambda/code-remote-{environment}-sync-worker",
+            retention_in_days=30,
+            tags=self.tags,
+            opts=pulumi.ResourceOptions(parent=self),
+        )
+
         # Lambda Function
         self.function = aws.lambda_.Function(
             f"{name}-function",

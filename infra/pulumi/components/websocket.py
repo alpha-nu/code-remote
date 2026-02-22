@@ -92,7 +92,7 @@ class WebSocketComponent(pulumi.ComponentResource):
         self.log_group = aws.cloudwatch.LogGroup(
             f"{name}-ws-logs",
             name=f"/aws/lambda/{name}-ws-handler",
-            retention_in_days=7,
+            retention_in_days=30,
             tags=self.tags,
             opts=pulumi.ResourceOptions(parent=self),
         )

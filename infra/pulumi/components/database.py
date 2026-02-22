@@ -8,11 +8,10 @@ Uses the existing VPC private subnets for database placement.
 """
 
 import json
-import random
-import string
 
 import pulumi
 import pulumi_aws as aws
+import pulumi_random as random
 
 
 class DatabaseComponent(pulumi.ComponentResource):
@@ -76,15 +75,19 @@ class DatabaseComponent(pulumi.ComponentResource):
             opts=pulumi.ResourceOptions(parent=self),
         )
 
-        # Generate random password for the database
-        password_chars = string.ascii_letters + string.digits
-        generated_password = "".join(random.choices(password_chars, k=32))
+        # Generate random password for the database (stored in Pulumi state).
+        # Password is persisted in Pulumi state — won't regenerate on each run.
+        self.db_password = random.RandomPassword(
+            f"{name}-password",
+            length=32,
+            opts=pulumi.ResourceOptions(parent=self),
+        )
 
         # Choose database type based on environment
         if environment == "dev":
-            self._create_rds_instance(name, generated_password)
+            self._create_rds_instance(name, self.db_password.result)
         else:
-            self._create_aurora_cluster(name, generated_password)
+            self._create_aurora_cluster(name, self.db_password.result)
 
         # Store full connection details in Secrets Manager (single secret with all info)
         self.connection_secret = aws.secretsmanager.Secret(
@@ -101,7 +104,7 @@ class DatabaseComponent(pulumi.ComponentResource):
             port=self.port,
             database="coderemote",
             username="coderemote",
-            password=generated_password,
+            password=self.db_password.result,
         ).apply(
             lambda args: json.dumps(
                 {
@@ -128,7 +131,7 @@ class DatabaseComponent(pulumi.ComponentResource):
             port=self.port,
             database="coderemote",
             username="coderemote",
-            password=generated_password,
+            password=self.db_password.result,
         ).apply(
             lambda args: f"postgresql+asyncpg://{args['username']}:{args['password']}@{args['host']}:{args['port']}/{args['database']}"
         )
@@ -143,7 +146,7 @@ class DatabaseComponent(pulumi.ComponentResource):
             }
         )
 
-    def _create_rds_instance(self, name: str, password: str) -> None:
+    def _create_rds_instance(self, name: str, password: pulumi.Input[str]) -> None:
         """Create a simple RDS PostgreSQL instance for dev (free tier eligible)."""
 
         # Parameter group for RDS PostgreSQL
@@ -189,7 +192,7 @@ class DatabaseComponent(pulumi.ComponentResource):
         self.endpoint = self.instance.address
         self.port = self.instance.port
 
-    def _create_aurora_cluster(self, name: str, password: str) -> None:
+    def _create_aurora_cluster(self, name: str, password: pulumi.Input[str]) -> None:
         """Create Aurora PostgreSQL Serverless v2 cluster for staging/prod."""
 
         # Aurora cluster parameter group

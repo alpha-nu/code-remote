@@ -135,7 +135,7 @@ class MigrationComponent(pulumi.ComponentResource):
         # CloudWatch Log Group
         self.log_group = aws.cloudwatch.LogGroup(
             f"{name}-logs",
-            name=f"/aws/lambda/{name}-func",
+            name=f"/aws/lambda/code-remote-{environment}-migrate",
             retention_in_days=30,
             tags=self.tags,
             opts=pulumi.ResourceOptions(parent=self),
@@ -144,6 +144,7 @@ class MigrationComponent(pulumi.ComponentResource):
         # Lambda Function
         self.function = aws.lambda_.Function(
             f"{name}-func",
+            name=f"code-remote-{environment}-migrate",
             package_type="Image",
             image_uri=pulumi.Output.concat(ecr_repository_url, ":", image_tag),
             role=self.role.arn,

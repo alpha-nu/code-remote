@@ -91,7 +91,7 @@ class WebSocketComponent(pulumi.ComponentResource):
         # CloudWatch Log Group
         self.log_group = aws.cloudwatch.LogGroup(
             f"{name}-ws-logs",
-            name=f"/aws/lambda/{name}-ws-handler",
+            name=f"/aws/lambda/code-remote-{environment}-ws-handler",
             retention_in_days=30,
             tags=self.tags,
             opts=pulumi.ResourceOptions(parent=self),
@@ -152,6 +152,7 @@ def handler(event, context):
         # Lambda function for WebSocket handlers
         self.handler = aws.lambda_.Function(
             f"{name}-ws-handler",
+            name=f"code-remote-{environment}-ws-handler",
             runtime="python3.11",
             handler="index.handler",
             role=self.lambda_role.arn,
